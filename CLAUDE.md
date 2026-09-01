@@ -89,7 +89,9 @@ ansible-playbook playbooks/site.yml -e @vars/kibana.yml --ask-vault-pass
       （欠けたキーへの `None` 注入で `'key' in item` 判定が壊れるのを避けるため）
   - 要素の必須項目・相互依存（「present なら X 必須」「1つだけ指定」）→ `manage_<x>.yml` の `assert`
   - 認証方式に応じた必須（api_key なら key 必須）→ `kibana_common/tasks/connect.yml` の `assert`
-- 差分検出は限定的で、各ロールに「検出できない差分」の注記がある:
+- 差分検出は限定的:
+  - rules `params` / connectors `config` は `_cur | combine(desired, recursive=true) != _cur`
+    で判定（Kibana の正規化・デフォルト補完で誤検知しない。**キー削除は非検出**）
   - rules: `actions` のみの変更は非検出 → `kibana_rules_force_update`
   - connectors: `secrets` は Kibana が返さないため非検出 → `kibana_connectors_force_update`
   - workflows: 既存に `yaml` フィールドが無ければ毎回 PUT

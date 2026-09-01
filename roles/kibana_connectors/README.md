@@ -91,8 +91,10 @@ Kibana は API レスポンスで `secrets` を返しません。そのため se
   `kibana_connectors_force_update: true` を指定してください。
 * コネクターが `is_missing_secrets: true` の状態のときは、差分ありとみなして
   自動的に `PUT`（secrets 再設定）を試みます。
-* `config` は Kibana 側で正規化された値が返るため、まれに差分ありと判定されて
-  `PUT` が走ることがあります（`PUT` は冪等なので実害はありません）。
+* `config` は「定義に書いた項目を現状にマージして値が変わるか」で判定します
+  （`combine(recursive=true)`）。Kibana が正規化・デフォルト補完した値を返しても
+  誤検知しません。ただし以前書いていた `config` のキーを定義から削除しても
+  revert されません（値を上書きするか force_update）。
 
 ## 実行例
 

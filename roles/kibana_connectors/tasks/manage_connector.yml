@@ -110,14 +110,20 @@
       when: _conn_preconfigured
 
     # --- 既存の name/config を定義と比較して差分判定 ---
-    #   Kibana は secrets を返さないため secrets は比較できない。
-    #   secrets を入れ替えたい場合は kibana_connectors_force_update: true を使う
+    #   config は「自分が指定した項目を現状にマージして変化するか」で判定する
+    #   （Kibana が正規化・デフォルト補完した値が返っても誤検知しない。
+    #    自分が指定していないキーの削除は検出できない）。
+    #   secrets は Kibana が返さないため比較不可。
+    #   is_missing_secrets が true のとき、または入れ替えたいときは
+    #   kibana_connectors_force_update: true を使う。
     - name: "Compute connector drift | {{ connector.name }}"
       ansible.builtin.set_fact:
         _conn_needs_update: >-
           {{ (connector.name != _conn_existing[0].name)
-             or ((connector.config | default({})) != (_conn_existing[0].config | default({})))
+             or ((_cur_config | combine(connector.config | default({}, true), recursive=true)) != _cur_config)
              or (_conn_existing[0].is_missing_secrets | default(false) | bool) }}
+      vars:
+        _cur_config: "{{ _conn_existing[0].config | default({}, true) }}"
       when:
         - _conn_existing | length > 0
         - not _conn_preconfigured

@@ -153,23 +153,22 @@
         kr_changed: true
       when: _rule_existing | length == 0
 
-    # --- 既存があれば、定義(_desired)と現状(_current)を比較して差分判定 ---
-    #   比較対象は name / tags / schedule.interval / params のみ。
-    #   （actions だけの変更は検出できない。README の注意書き参照）
+    # --- 既存があれば、定義と現状を比較して差分判定 ---
+    #   name / tags / schedule.interval は完全一致で比較。
+    #   params は「自分が指定した項目を現状にマージして変化するか」で判定する。
+    #   → Kibana が正規化・デフォルト補完した値が返っても誤検知しない。
+    #     （自分が指定していないキーの削除は検出できない。actions も非対象。README 参照）
     - name: "Compute rule drift | {{ rule.name }}"
       ansible.builtin.set_fact:
-        _rule_needs_update: "{{ _desired != _current }}"
+        _rule_needs_update: >-
+          {{ (rule.name != (_cur.name | default('')))
+             or ((rule.tags | default([]) | sort) != (_cur.tags | default([]) | sort))
+             or ((rule.schedule | default({'interval': '1m'})).interval
+                 != (_cur.schedule.interval | default('')))
+             or ((_cur_params | combine(rule.params | default({}, true), recursive=true)) != _cur_params) }}
       vars:
-        _desired:
-          name: "{{ rule.name }}"
-          tags: "{{ rule.tags | default([]) | sort }}"
-          interval: "{{ (rule.schedule | default({'interval': '1m'})).interval }}"
-          params: "{{ rule.params | default({}) }}"
-        _current:
-          name: "{{ _rule_existing[0].name | default('') }}"
-          tags: "{{ _rule_existing[0].tags | default([]) | sort }}"
-          interval: "{{ _rule_existing[0].schedule.interval | default('') }}"
-          params: "{{ _rule_existing[0].params | default({}) }}"
+        _cur: "{{ _rule_existing[0] }}"
+        _cur_params: "{{ _rule_existing[0].params | default({}, true) }}"
       when: _rule_existing | length > 0
 
     # --- 差分ありのとき（または force_update 指定時）だけ PUT で更新 ---

@@ -99,10 +99,15 @@ Kibana UI の「Inspect」表示からコピーしてください。
 ## 差分検出の注意
 
 差分は `name` / `tags` / `schedule.interval` / `params` で比較します。
-**`actions` だけ**が変わった場合は検出されません。別のフィールドを変更するか、
-その実行で `kibana_rules_force_update: true` を指定してください。
-なお `params` は Kibana 側で正規化された値が返るため、まれに差分ありと判定されて
-`PUT` が走ることがあります（`PUT` は冪等なので実害はありません）。
+
+- `name` / `tags` / `schedule.interval` は完全一致で比較。
+- `params` は「定義に書いた項目を現状にマージして値が変わるか」で判定します
+  （`combine(recursive=true)`）。Kibana が正規化・デフォルト補完した値を返しても
+  誤検知しません。**ただし、以前書いていた `params` のキーを定義から削除しても
+  revert されません**（明示的に消したいときは値を上書きするか force_update）。
+- 次のケースは検出されないため、`kibana_rules_force_update: true` を使ってください:
+  - `actions` だけの変更
+  - `params` のキー削除（上記）
 
 ## 実行例
 
