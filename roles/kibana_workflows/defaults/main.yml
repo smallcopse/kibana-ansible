@@ -16,6 +16,10 @@ kibana_workflows_api_version: "2023-10-31"      # elastic-api-version ヘッダ
 kibana_workflows_list_path: "/api/workflows"            # 一覧取得 (GET)
 kibana_workflows_item_path: "/api/workflows/workflow"   # 作成 (POST) / 更新・削除 (…/{id})
 
+# 一覧取得 URL に付けるクエリ文字列（"?" から書く。全件取れるページサイズを指定する）。
+# API がページングのパラメータ名を変えた場合はここで上書きする（例: "?perPage=1000"）。
+kibana_workflows_list_query: "?limit=1000"
+
 # 一覧レスポンスで配列が入っているキー。レスポンスが配列そのものなら無視される。
 kibana_workflows_list_key: "results"
 

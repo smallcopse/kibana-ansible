@@ -35,7 +35,7 @@
   vars:
     kr_name: "GET {{ kibana_workflows_list_path }}"
     kr_method: GET
-    kr_url: "{{ _kibana_api_base }}{{ kibana_workflows_list_path }}?limit=1000"
+    kr_url: "{{ _kibana_api_base }}{{ kibana_workflows_list_path }}{{ kibana_workflows_list_query }}"
     kr_status: [200]
     kr_check_mode: false
 

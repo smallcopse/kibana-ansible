@@ -41,6 +41,7 @@
 | `kibana_workflows_api_version` | `2023-10-31` | `elastic-api-version` ヘッダの値。 |
 | `kibana_workflows_list_path` | `/api/workflows` | 一覧取得 (GET) のパス。 |
 | `kibana_workflows_item_path` | `/api/workflows/workflow` | 作成 (POST) / 更新・削除 (`…/{id}`) のパス。 |
+| `kibana_workflows_list_query` | `?limit=1000` | 一覧取得 URL のクエリ文字列。全件取れるページサイズを指定。API が別のパラメータ名なら上書き（例 `?perPage=1000`）。 |
 | `kibana_workflows_list_key` | `results` | 一覧レスポンスで配列が入っているキー。配列そのものなら無視。 |
 | `kibana_workflows_state` | `present` | `present` または `absent`。 |
 | `kibana_workflows_force_update` | `false` | 差分が無くても常に `PUT`。 |
