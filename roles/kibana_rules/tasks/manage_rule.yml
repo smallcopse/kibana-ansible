@@ -1,0 +1,210 @@
+---
+# ============================================================================
+# ルール 1 件分の処理。main.yml の loop から `rule` を受け取る。
+# 流れ:
+#   1. ルール定義の必須項目チェック
+#   2. このルール用の一時変数をリセット
+#   3. 同名ルールを Kibana から検索し、存在有無を判定
+#   4a. state: absent  -> 存在すれば削除
+#   4b. state: present -> アクション整形 -> body 組み立て
+#                         -> 無ければ作成 / あれば差分時のみ更新
+#                         -> enabled 状態を合わせる（_enable / _disable）
+# ============================================================================
+
+# --- 1. ルール定義に最低限必要な項目があるか確認 ---
+- name: "Validate rule definition | {{ rule.name | default('<unnamed>') }}"
+  ansible.builtin.assert:
+    that:
+      - rule.name is defined and rule.name | length > 0
+      # present のときは rule_type_id と consumer も必須（作成/更新に必要）
+      - (kibana_rules_state != 'present') or (rule.rule_type_id is defined)
+      - (kibana_rules_state != 'present') or (rule.consumer is defined)
+    quiet: true
+    fail_msg: "each rule needs at least: name, rule_type_id, consumer"
+
+# --- 2. 前のループの値が残らないよう、このルール用の変数を初期化 ---
+#   _rule_actions   : 整形後のアクション配列（このあと組み立てる）
+#   _rule_needs_update : 差分ありフラグ（既定 false）
+- name: "Reset per-rule facts | {{ rule.name }}"
+  ansible.builtin.set_fact:
+    _rule_actions: []
+    _rule_needs_update: false
+
+# --- 3a. 同名のルールを名前で検索する ---
+#   _find は部分一致検索なので、このあと厳密一致で絞り込む。
+#   GET なので kr_check_mode: false（--check でも実行して差分判定できるようにする）
+- name: "Find existing rule | {{ rule.name }}"
+  ansible.builtin.include_tasks: request.yml
+  vars:
+    kr_name: "GET /api/alerting/rules/_find (name={{ rule.name }})"
+    kr_method: GET
+    kr_url: "{{ _kibana_api_base }}/api/alerting/rules/_find?per_page=100&search_fields=name&search={{ rule.name | urlencode }}"
+    kr_status: [200]
+    kr_check_mode: false
+
+# --- 3b. 検索結果から name が完全一致するものだけ取り出す ---
+#   _rule_existing が空なら未作成、1 件以上あれば既存とみなす
+- name: "Select exact rule match | {{ rule.name }}"
+  ansible.builtin.set_fact:
+    _rule_existing: "{{ kibana_request.json.data | selectattr('name', 'equalto', rule.name) | list }}"
+
+# ---------------------------------------------------------------------------
+# state: absent (削除)
+# ---------------------------------------------------------------------------
+
+# --- 既存ルールがあれば id を指定して削除する ---
+- name: "Delete rule | {{ rule.name }}"
+  ansible.builtin.include_tasks: request.yml
+  vars:
+    kr_name: "DELETE /api/alerting/rule/{{ _rule_existing[0].id }} ({{ rule.name }})"
+    kr_method: DELETE
+    kr_url: "{{ _kibana_api_base }}/api/alerting/rule/{{ _rule_existing[0].id }}"
+    kr_status: [204]
+    kr_changed: true
+  when:
+    - kibana_rules_state == 'absent'
+    - _rule_existing | length > 0
+
+# ---------------------------------------------------------------------------
+# state: present (作成 / 更新 / 有効・無効)
+# ---------------------------------------------------------------------------
+- name: "Manage rule (present) | {{ rule.name }}"
+  when: kibana_rules_state == 'present'
+  block:
+
+    # --- 各アクションの connector が解決できるか事前チェック ---
+    #   id を直接指定しているか、connector_name が対応表に存在すること
+    - name: "Check action connectors are resolvable | {{ rule.name }}"
+      ansible.builtin.assert:
+        that:
+          - (_act.id is defined) or (_act.connector_name is defined and _act.connector_name in _kibana_connector_map)
+        quiet: true
+        fail_msg: >-
+          action for rule '{{ rule.name }}' references connector
+          '{{ _act.connector_name | default("?") }}' which was not found - pass an
+          explicit `id`, or check kibana_rules_resolve_connectors / connector name.
+      loop: "{{ rule.actions | default([]) }}"
+      loop_control:
+        loop_var: _act
+        label: "{{ _act.connector_name | default(_act.id | default('?')) }}"
+
+    # --- アクションを Kibana API が受け付ける形に整形する ---
+    #   connector_name -> id へ置き換え、connector_name キー自体は削除して
+    #   _rule_actions に 1 件ずつ追加していく
+    - name: "Normalise rule actions | {{ rule.name }}"
+      ansible.builtin.set_fact:
+        _rule_actions: "{{ _rule_actions + [_norm_action] }}"
+      loop: "{{ rule.actions | default([]) }}"
+      loop_control:
+        loop_var: _act
+        label: "{{ _act.connector_name | default(_act.id | default('?')) }}"
+      vars:
+        # id 直接指定があればそれを、無ければ connector_name から対応表で引く
+        _resolved_id: "{{ _act.id | default(_kibana_connector_map[_act.connector_name]) }}"
+        _norm_action: >-
+          {{ (_act | combine({'id': _resolved_id}))
+             | dict2items | rejectattr('key', 'equalto', 'connector_name') | items2dict }}
+
+    # --- 作成用 body と更新用 body を組み立てる ---
+    #   作成 (POST) は rule_type_id / consumer / enabled を含められる。
+    #   更新 (PUT) はそれらを受け付けないため name/schedule/params/tags/actions のみ。
+    #   throttle / notify_when は rule 側に指定があるときだけ付与（旧形式・任意）
+    - name: "Build rule bodies | {{ rule.name }}"
+      ansible.builtin.set_fact:
+        _rule_create_body: >-
+          {{ {
+               'name': rule.name,
+               'rule_type_id': rule.rule_type_id,
+               'consumer': rule.consumer,
+               'enabled': rule.enabled | default(true),
+               'schedule': rule.schedule | default({'interval': '1m'}),
+               'params': rule.params | default({}),
+               'tags': rule.tags | default([]),
+               'actions': _rule_actions,
+             }
+             | combine({'throttle': rule.throttle} if 'throttle' in rule else {})
+             | combine({'notify_when': rule.notify_when} if 'notify_when' in rule else {}) }}
+        _rule_update_body: >-
+          {{ {
+               'name': rule.name,
+               'schedule': rule.schedule | default({'interval': '1m'}),
+               'params': rule.params | default({}),
+               'tags': rule.tags | default([]),
+               'actions': _rule_actions,
+             }
+             | combine({'throttle': rule.throttle} if 'throttle' in rule else {})
+             | combine({'notify_when': rule.notify_when} if 'notify_when' in rule else {}) }}
+
+    # --- 既存が無ければ新規作成する ---
+    - name: "Create rule | {{ rule.name }}"
+      ansible.builtin.include_tasks: request.yml
+      vars:
+        kr_name: "POST /api/alerting/rule ({{ rule.name }})"
+        kr_method: POST
+        kr_url: "{{ _kibana_api_base }}/api/alerting/rule"
+        kr_body: "{{ _rule_create_body }}"
+        kr_status: [200]
+        kr_changed: true
+      when: _rule_existing | length == 0
+
+    # --- 既存があれば、定義(_desired)と現状(_current)を比較して差分判定 ---
+    #   比較対象は name / tags / schedule.interval / params のみ。
+    #   （actions だけの変更は検出できない。README の注意書き参照）
+    - name: "Compute rule drift | {{ rule.name }}"
+      ansible.builtin.set_fact:
+        _rule_needs_update: "{{ _desired != _current }}"
+      vars:
+        _desired:
+          name: "{{ rule.name }}"
+          tags: "{{ rule.tags | default([]) | sort }}"
+          interval: "{{ (rule.schedule | default({'interval': '1m'})).interval }}"
+          params: "{{ rule.params | default({}) }}"
+        _current:
+          name: "{{ _rule_existing[0].name | default('') }}"
+          tags: "{{ _rule_existing[0].tags | default([]) | sort }}"
+          interval: "{{ _rule_existing[0].schedule.interval | default('') }}"
+          params: "{{ _rule_existing[0].params | default({}) }}"
+      when: _rule_existing | length > 0
+
+    # --- 差分ありのとき（または force_update 指定時）だけ PUT で更新 ---
+    - name: "Update rule | {{ rule.name }}"
+      ansible.builtin.include_tasks: request.yml
+      vars:
+        kr_name: "PUT /api/alerting/rule/{{ _rule_existing[0].id }} ({{ rule.name }})"
+        kr_method: PUT
+        kr_url: "{{ _kibana_api_base }}/api/alerting/rule/{{ _rule_existing[0].id }}"
+        kr_body: "{{ _rule_update_body }}"
+        kr_status: [200]
+        kr_changed: true
+      when:
+        - _rule_existing | length > 0
+        - (_rule_needs_update | bool) or (kibana_rules_force_update | bool)
+
+    # --- enabled: true にしたいのに現状が無効なら有効化する ---
+    #   （新規作成分は作成 body の enabled で設定済みなので既存のみ対象）
+    - name: "Enable rule | {{ rule.name }}"
+      ansible.builtin.include_tasks: request.yml
+      vars:
+        kr_name: "POST /api/alerting/rule/{{ _rule_existing[0].id }}/_enable ({{ rule.name }})"
+        kr_method: POST
+        kr_url: "{{ _kibana_api_base }}/api/alerting/rule/{{ _rule_existing[0].id }}/_enable"
+        kr_status: [204]
+        kr_changed: true
+      when:
+        - _rule_existing | length > 0
+        - rule.enabled | default(true) | bool
+        - not (_rule_existing[0].enabled | default(false) | bool)
+
+    # --- enabled: false にしたいのに現状が有効なら無効化する ---
+    - name: "Disable rule | {{ rule.name }}"
+      ansible.builtin.include_tasks: request.yml
+      vars:
+        kr_name: "POST /api/alerting/rule/{{ _rule_existing[0].id }}/_disable ({{ rule.name }})"
+        kr_method: POST
+        kr_url: "{{ _kibana_api_base }}/api/alerting/rule/{{ _rule_existing[0].id }}/_disable"
+        kr_status: [204]
+        kr_changed: true
+      when:
+        - _rule_existing | length > 0
+        - not (rule.enabled | default(true) | bool)
+        - _rule_existing[0].enabled | default(true) | bool

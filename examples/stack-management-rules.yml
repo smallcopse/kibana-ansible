@@ -1,0 +1,80 @@
+---
+# extra-vars ファイルの例:
+#   ansible-playbook playbooks/manage-rules.yml -e @examples/stack-management-rules.yml
+#
+# Stack Management -> ルール (Elasticsearch query / Index threshold)。
+
+kibana_url: "https://kibana.example.com:5601"
+kibana_space: ""
+kibana_auth_method: "basic"
+kibana_username: "{{ vault_kibana_username }}"
+kibana_password: "{{ vault_kibana_password }}"
+kibana_validate_certs: true
+
+kibana_rules_state: present
+
+kibana_rules:
+
+  # ---------------------------------------------------------------------------
+  # Stack Management : Elasticsearch クエリ (Elasticsearch query)
+  # ---------------------------------------------------------------------------
+  - name: "[stack] 5xx responses - api gateway"
+    rule_type_id: ".es-query"
+    consumer: "stackAlerts"
+    tags: ["stack", "http"]
+    enabled: true
+    schedule:
+      interval: "1m"
+    params:
+      searchType: "esQuery"
+      esQuery: "{\"query\":{\"bool\":{\"filter\":[{\"range\":{\"http.response.status_code\":{\"gte\":500}}}]}}}"
+      index: ["logs-*"]
+      timeField: "@timestamp"
+      timeWindowSize: 5
+      timeWindowUnit: "m"
+      threshold: [10]
+      thresholdComparator: ">"
+      size: 100
+      aggType: "count"
+      groupBy: "all"
+      excludeHitsFromPreviousRun: true
+    actions:
+      - group: "query matched"
+        connector_name: "Ops Slack"
+        params:
+          message: >-
+            {{ '{{rule.name}} matched {{context.hits.total.value}} docs' }}
+        frequency:
+          notify_when: "onActiveAlert"
+          throttle: "15m"
+          summary: false
+
+  # ---------------------------------------------------------------------------
+  # Stack Management : インデックスしきい値 (Index threshold)
+  # ---------------------------------------------------------------------------
+  - name: "[stack] Low free disk - data nodes"
+    rule_type_id: ".index-threshold"
+    consumer: "stackAlerts"
+    tags: ["stack", "infra"]
+    enabled: true
+    schedule:
+      interval: "1m"
+    params:
+      index: ["metrics-*"]
+      timeField: "@timestamp"
+      aggType: "avg"
+      aggField: "system.filesystem.used.pct"
+      groupBy: "top"
+      termField: "host.name"
+      termSize: 10
+      timeWindowSize: 5
+      timeWindowUnit: "m"
+      thresholdComparator: ">"
+      threshold: [0.9]
+    actions: []
+
+  # ---------------------------------------------------------------------------
+  # ルールの削除 (name で突合)
+  # ---------------------------------------------------------------------------
+  # 実行全体で kibana_rules_state: absent を指定するか、
+  # 廃止用の play / インベントリグループを分けて管理する。

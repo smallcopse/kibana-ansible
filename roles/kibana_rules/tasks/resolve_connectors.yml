@@ -1,0 +1,24 @@
+---
+# ============================================================================
+# Kibana の connector 一覧を取得し、「connector 名 -> connector id」の
+# 対応表 (_kibana_connector_map) を作る。
+# これにより、ルールのアクションで id の代わりに connector_name を指定できる。
+# ============================================================================
+
+# --- connector 一覧を取得（GET なので --check でも実行する） ---
+- name: Fetch existing Kibana connectors
+  ansible.builtin.include_tasks: request.yml
+  vars:
+    kr_name: "GET /api/actions/connectors"
+    kr_method: GET
+    kr_url: "{{ _kibana_api_base }}/api/actions/connectors"
+    kr_status: [200]
+    kr_check_mode: false
+
+# --- レスポンス（connector の配列）から name と id を取り出して dict にする ---
+#   例: [{name: "Ops Slack", id: "abc"}, ...] -> {"Ops Slack": "abc", ...}
+- name: Build connector name -> id map
+  ansible.builtin.set_fact:
+    _kibana_connector_map: >-
+      {{ dict(kibana_request.json | map(attribute='name')
+              | zip(kibana_request.json | map(attribute='id'))) }}

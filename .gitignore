@@ -1,0 +1,7 @@
+*.retry
+group_vars/**/vault.yml
+vault.yml
+.vault_pass
+*.pyc
+__pycache__/
+.venv/

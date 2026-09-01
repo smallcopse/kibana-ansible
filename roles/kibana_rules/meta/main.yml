@@ -1,0 +1,28 @@
+---
+galaxy_info:
+  role_name: kibana_rules
+  namespace: kibana_ansible
+  author: smallcopse
+  description: >-
+    Create and manage Kibana Observability and Stack Management alerting rules
+    through the Kibana Alerting API (idempotent create / update / enable / delete).
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+  galaxy_tags:
+    - kibana
+    - elastic
+    - elasticsearch
+    - alerting
+    - observability
+    - monitoring
+
+dependencies: []

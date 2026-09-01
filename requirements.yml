@@ -1,0 +1,6 @@
+---
+# kibana_rules role は ansible.builtin モジュールのみを使用するため、
+# Galaxy コレクションの追加は不要。慣例的なエントリポイントとして残している:
+#   ansible-galaxy collection install -r requirements.yml
+collections: []
+roles: []
