@@ -25,8 +25,14 @@
 #   _conn_needs_update は前ループの値が残らないようここで初期化する
 - name: "Select existing connector | {{ connector.name }}"
   ansible.builtin.set_fact:
-    _conn_existing: "{{ _kibana_existing_connectors | selectattr('name', 'equalto', connector.name) | list }}"
+    _conn_existing: "{{ _kibana_existing_connectors | selectattr('name', 'defined') | selectattr('name', 'equalto', connector.name) | list }}"
     _conn_needs_update: false
+
+# --- preconfigured（kibana.yml で定義）かどうかを一度だけ判定する ---
+#   preconfigured は API から更新・削除できない。以降の判定はこの fact を使う
+- name: "Flag preconfigured connector | {{ connector.name }}"
+  ansible.builtin.set_fact:
+    _conn_preconfigured: "{{ (_conn_existing | length > 0) and (_conn_existing[0].is_preconfigured | default(false) | bool) }}"
 
 # ---------------------------------------------------------------------------
 # state: absent (削除)
@@ -38,8 +44,7 @@
     msg: "connector '{{ connector.name }}' is preconfigured and cannot be deleted via the API - skipping"
   when:
     - kibana_connectors_state == 'absent'
-    - _conn_existing | length > 0
-    - _conn_existing[0].is_preconfigured | default(false) | bool
+    - _conn_preconfigured
 
 # --- 通常のコネクターは id を指定して削除する ---
 - name: "Delete connector | {{ connector.name }}"
@@ -55,7 +60,7 @@
   when:
     - kibana_connectors_state == 'absent'
     - _conn_existing | length > 0
-    - not (_conn_existing[0].is_preconfigured | default(false) | bool)
+    - not _conn_preconfigured
 
 # ---------------------------------------------------------------------------
 # state: present (作成 / 更新)
@@ -102,9 +107,7 @@
     - name: "Warn: cannot update preconfigured connector | {{ connector.name }}"
       ansible.builtin.debug:
         msg: "connector '{{ connector.name }}' is preconfigured and cannot be updated via the API - skipping"
-      when:
-        - _conn_existing | length > 0
-        - _conn_existing[0].is_preconfigured | default(false) | bool
+      when: _conn_preconfigured
 
     # --- 既存の name/config を定義と比較して差分判定 ---
     #   Kibana は secrets を返さないため secrets は比較できない。
@@ -117,7 +120,7 @@
              or (_conn_existing[0].is_missing_secrets | default(false) | bool) }}
       when:
         - _conn_existing | length > 0
-        - not (_conn_existing[0].is_preconfigured | default(false) | bool)
+        - not _conn_preconfigured
 
     # --- 差分あり、または force_update 指定時のみ PUT で更新 ---
     - name: "Update connector | {{ connector.name }}"
@@ -133,5 +136,5 @@
         kr_changed: true
       when:
         - _conn_existing | length > 0
-        - not (_conn_existing[0].is_preconfigured | default(false) | bool)
+        - not _conn_preconfigured
         - (_conn_needs_update | default(false) | bool) or (kibana_connectors_force_update | bool)
