@@ -1,0 +1,113 @@
+---
+# extra-vars ファイルの例:
+#   ansible-playbook playbooks/manage-connectors.yml -e @examples/connectors.yml
+#
+# 実際のシークレットはここに書かず、ansible-vault で暗号化したファイルに置くこと。
+
+kibana_url: "https://kibana.example.com:5601"
+kibana_space: ""                       # "" = デフォルトスペース
+kibana_auth_method: "api_key"
+kibana_api_key: "{{ vault_kibana_api_key }}"   # エンコード済み API キー
+kibana_validate_certs: true
+
+kibana_connectors_state: present
+
+kibana_connectors:
+
+  # ---------------------------------------------------------------------------
+  # Slack (Incoming Webhook)
+  # ---------------------------------------------------------------------------
+  - name: "Ops Slack"
+    connector_type_id: ".slack"
+    secrets:
+      webhookUrl: "{{ vault_slack_webhook_url }}"
+
+  # ---------------------------------------------------------------------------
+  # Slack API (Bot トークン + チャンネル制限)
+  # ---------------------------------------------------------------------------
+  - name: "Ops Slack API"
+    connector_type_id: ".slack_api"
+    config:
+      allowedChannels:
+        - id: "C0123456789"
+          name: "alerts"
+    secrets:
+      token: "{{ vault_slack_bot_token }}"
+
+  # ---------------------------------------------------------------------------
+  # Email (SMTP)
+  # ---------------------------------------------------------------------------
+  - name: "Ops Email"
+    connector_type_id: ".email"
+    config:
+      from: "kibana-alerts@example.com"
+      host: "smtp.example.com"
+      port: 587
+      secure: false
+      hasAuth: true
+    secrets:
+      user: "kibana-alerts@example.com"
+      password: "{{ vault_smtp_password }}"
+
+  # ---------------------------------------------------------------------------
+  # PagerDuty
+  # ---------------------------------------------------------------------------
+  - name: "PagerDuty - platform"
+    connector_type_id: ".pagerduty"
+    config:
+      apiUrl: "https://events.pagerduty.com"
+    secrets:
+      routingKey: "{{ vault_pagerduty_routing_key }}"
+
+  # ---------------------------------------------------------------------------
+  # Webhook (Basic 認証あり)
+  # ---------------------------------------------------------------------------
+  - name: "Generic webhook - incident bus"
+    connector_type_id: ".webhook"
+    config:
+      url: "https://hooks.example.com/kibana"
+      method: "post"
+      hasAuth: true
+      authType: "webhook-authentication-basic"
+      headers:
+        content-type: "application/json"
+    secrets:
+      user: "kibana"
+      password: "{{ vault_webhook_password }}"
+
+  # ---------------------------------------------------------------------------
+  # Webhook (OAuth2 / client credentials 認証)
+  #   Kibana 8.16 以降。トークンエンドポイントから access token を取得して
+  #   Authorization: Bearer で送信する。secrets は clientSecret のみ。
+  # ---------------------------------------------------------------------------
+  - name: "Generic webhook - oauth2"
+    connector_type_id: ".webhook"
+    config:
+      url: "https://api.example.com/v1/events"
+      method: "post"
+      hasAuth: true
+      authType: "webhook-authentication-oauth2"
+      accessTokenUrl: "https://login.example.com/oauth2/token"
+      clientId: "kibana-alerting"
+      scope: "events.write"
+      # トークン取得リクエストに追加で送るフィールド（任意、JSON 文字列）
+      additionalFields: "{\"audience\":\"https://api.example.com\"}"
+      headers:
+        content-type: "application/json"
+    secrets:
+      clientSecret: "{{ vault_webhook_oauth2_client_secret }}"
+
+  # ---------------------------------------------------------------------------
+  # Index (アラートを Elasticsearch インデックスへ書き込む)
+  # ---------------------------------------------------------------------------
+  - name: "Write alerts to index"
+    connector_type_id: ".index"
+    config:
+      index: "kibana-alert-history"
+      refresh: true
+
+  # ---------------------------------------------------------------------------
+  # Server log (Kibana のログに出力。config / secrets なし)
+  # ---------------------------------------------------------------------------
+  - name: "Server log"
+    connector_type_id: ".server-log"

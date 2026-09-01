@@ -1,0 +1,11 @@
+---
+# 使い方:
+#   ansible-playbook playbooks/manage-connectors.yml -e @examples/connectors.yml
+#
+# 接続情報と kibana_connectors は extra-vars ファイル (examples/ 参照)、
+# もしくは group_vars / 自前の Vault 暗号化ファイルで渡す。
+- name: Manage Kibana connectors
+  hosts: "{{ target_hosts | default('localhost') }}"
+  gather_facts: false
+  roles:
+    - role: kibana_connectors

@@ -1,0 +1,131 @@
+---
+# ============================================================================
+# コネクター 1 件分の処理。main.yml の loop から `connector` を受け取る。
+# 流れ:
+#   1. 定義の必須項目チェック
+#   2. 取得済みの一覧から同名コネクターを探す
+#   3a. state: absent  -> 存在すれば削除（preconfigured は不可）
+#   3b. state: present -> body 組み立て
+#                         -> 無ければ作成
+#                         -> あれば name/config 差分時、または force_update 時に更新
+# ============================================================================
+
+# --- 1. 最低限必要な項目があるか確認 ---
+- name: "Validate connector definition | {{ connector.name | default('<unnamed>') }}"
+  ansible.builtin.assert:
+    that:
+      - connector.name is defined and connector.name | length > 0
+      # present のときは connector_type_id も必須（作成に必要）
+      - (kibana_connectors_state != 'present') or (connector.connector_type_id is defined)
+    quiet: true
+    fail_msg: "each connector needs at least: name, connector_type_id"
+
+# --- 2. 一覧から name が完全一致するコネクターを取り出す ---
+#   _conn_existing が空なら未作成、あれば既存。
+#   _conn_needs_update は前ループの値が残らないようここで初期化する
+- name: "Select existing connector | {{ connector.name }}"
+  ansible.builtin.set_fact:
+    _conn_existing: "{{ _kibana_existing_connectors | selectattr('name', 'equalto', connector.name) | list }}"
+    _conn_needs_update: false
+
+# ---------------------------------------------------------------------------
+# state: absent (削除)
+# ---------------------------------------------------------------------------
+
+# --- preconfigured（kibana.yml で定義）のコネクターは API から削除できないので警告のみ ---
+- name: "Warn: cannot delete preconfigured connector | {{ connector.name }}"
+  ansible.builtin.debug:
+    msg: "connector '{{ connector.name }}' is preconfigured and cannot be deleted via the API - skipping"
+  when:
+    - kibana_connectors_state == 'absent'
+    - _conn_existing | length > 0
+    - _conn_existing[0].is_preconfigured | default(false) | bool
+
+# --- 通常のコネクターは id を指定して削除する ---
+- name: "Delete connector | {{ connector.name }}"
+  ansible.builtin.include_tasks: request.yml
+  vars:
+    kr_name: "DELETE /api/actions/connector/{{ _conn_existing[0].id }} ({{ connector.name }})"
+    kr_method: DELETE
+    kr_url: "{{ _kibana_api_base }}/api/actions/connector/{{ _conn_existing[0].id }}"
+    kr_status: [204]
+    kr_changed: true
+  when:
+    - kibana_connectors_state == 'absent'
+    - _conn_existing | length > 0
+    - not (_conn_existing[0].is_preconfigured | default(false) | bool)
+
+# ---------------------------------------------------------------------------
+# state: present (作成 / 更新)
+# ---------------------------------------------------------------------------
+- name: "Manage connector (present) | {{ connector.name }}"
+  when: kibana_connectors_state == 'present'
+  block:
+
+    # --- 作成用 body と更新用 body を組み立てる ---
+    #   作成 (POST) は connector_type_id を含む。
+    #   更新 (PUT) は connector_type_id を受け付けないため name/config/secrets のみ。
+    #   config / secrets は指定があるときだけ付与（.server-log のように無い型もある）
+    - name: "Build connector bodies | {{ connector.name }}"
+      ansible.builtin.set_fact:
+        _conn_create_body: >-
+          {{ {
+               'name': connector.name,
+               'connector_type_id': connector.connector_type_id,
+             }
+             | combine({'config': connector.config} if 'config' in connector else {})
+             | combine({'secrets': connector.secrets} if 'secrets' in connector else {}) }}
+        _conn_update_body: >-
+          {{ {
+               'name': connector.name,
+             }
+             | combine({'config': connector.config} if 'config' in connector else {})
+             | combine({'secrets': connector.secrets} if 'secrets' in connector else {}) }}
+
+    # --- 既存が無ければ新規作成する ---
+    - name: "Create connector | {{ connector.name }}"
+      ansible.builtin.include_tasks: request.yml
+      vars:
+        kr_name: "POST /api/actions/connector ({{ connector.name }})"
+        kr_method: POST
+        kr_url: "{{ _kibana_api_base }}/api/actions/connector"
+        kr_body: "{{ _conn_create_body }}"
+        kr_status: [200]
+        kr_changed: true
+      when: _conn_existing | length == 0
+
+    # --- preconfigured は更新できないので警告のみ ---
+    - name: "Warn: cannot update preconfigured connector | {{ connector.name }}"
+      ansible.builtin.debug:
+        msg: "connector '{{ connector.name }}' is preconfigured and cannot be updated via the API - skipping"
+      when:
+        - _conn_existing | length > 0
+        - _conn_existing[0].is_preconfigured | default(false) | bool
+
+    # --- 既存の name/config を定義と比較して差分判定 ---
+    #   Kibana は secrets を返さないため secrets は比較できない。
+    #   secrets を入れ替えたい場合は kibana_connectors_force_update: true を使う
+    - name: "Compute connector drift | {{ connector.name }}"
+      ansible.builtin.set_fact:
+        _conn_needs_update: >-
+          {{ (connector.name != _conn_existing[0].name)
+             or ((connector.config | default({})) != (_conn_existing[0].config | default({})))
+             or (_conn_existing[0].is_missing_secrets | default(false) | bool) }}
+      when:
+        - _conn_existing | length > 0
+        - not (_conn_existing[0].is_preconfigured | default(false) | bool)
+
+    # --- 差分あり、または force_update 指定時のみ PUT で更新 ---
+    - name: "Update connector | {{ connector.name }}"
+      ansible.builtin.include_tasks: request.yml
+      vars:
+        kr_name: "PUT /api/actions/connector/{{ _conn_existing[0].id }} ({{ connector.name }})"
+        kr_method: PUT
+        kr_url: "{{ _kibana_api_base }}/api/actions/connector/{{ _conn_existing[0].id }}"
+        kr_body: "{{ _conn_update_body }}"
+        kr_status: [200]
+        kr_changed: true
+      when:
+        - _conn_existing | length > 0
+        - not (_conn_existing[0].is_preconfigured | default(false) | bool)
+        - (_conn_needs_update | default(false) | bool) or (kibana_connectors_force_update | bool)

@@ -1,0 +1,28 @@
+---
+galaxy_info:
+  role_name: kibana_connectors
+  namespace: kibana_ansible
+  author: smallcopse
+  description: >-
+    Create and manage Kibana connectors (Slack, Email, Webhook, PagerDuty,
+    Index, Server log, Jira, ...) through the Kibana Actions/Connectors API.
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+  galaxy_tags:
+    - kibana
+    - elastic
+    - elasticsearch
+    - alerting
+    - connectors
+    - monitoring
+
+dependencies: []

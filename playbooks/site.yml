@@ -1,0 +1,13 @@
+---
+# コネクター -> ルール の順でまとめて適用する。
+# ルールのアクションが connector_name で参照するコネクターを先に作るため、この順序にする。
+#
+# 使い方:
+#   ansible-playbook playbooks/site.yml -e @vars/kibana.yml
+#   （vars ファイルに kibana_connectors と kibana_rules の両方を定義しておく）
+- name: Manage Kibana connectors and alerting rules
+  hosts: "{{ target_hosts | default('localhost') }}"
+  gather_facts: false
+  roles:
+    - role: kibana_connectors
+    - role: kibana_rules
