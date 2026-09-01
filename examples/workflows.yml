@@ -1,0 +1,82 @@
+---
+# extra-vars ファイルの例:
+#   ansible-playbook playbooks/manage-workflows.yml -e @examples/workflows.yml
+#
+# Workflows は技術プレビュー（Enterprise ライセンス必須）。Kibana 側で有効化が必要。
+# 実際のシークレットはここに書かず、ansible-vault で暗号化したファイルに置くこと。
+
+kibana_url: "https://kibana.example.com:5601"
+kibana_space: ""
+kibana_auth_method: "api_key"
+kibana_api_key: "{{ vault_kibana_api_key }}"
+kibana_validate_certs: true
+
+kibana_workflows_state: present
+
+kibana_workflows:
+
+  # ---------------------------------------------------------------------------
+  # definition: dict でインラインに定義する（name は自動で下の name に合わせる）
+  # ---------------------------------------------------------------------------
+  - name: "national-parks-demo"
+    definition:
+      version: "1"
+      description: "Elasticsearch インデックスを作成するデモ workflow"
+      enabled: true
+      consts:
+        indexName: "national-parks"
+      triggers:
+        - type: manual
+      steps:
+        - name: check_index
+          type: elasticsearch.indices.exists
+          with:
+            index: "{{ '{{ consts.indexName }}' }}"
+        - name: create_index
+          type: elasticsearch.indices.create
+          if: "{{ '{{ !steps.check_index.output.exists }}' }}"
+          with:
+            index: "{{ '{{ consts.indexName }}' }}"
+
+  # ---------------------------------------------------------------------------
+  # definition: スケジュール実行 + Slack コネクター呼び出し
+  # ---------------------------------------------------------------------------
+  - name: "daily-cluster-health-report"
+    definition:
+      version: "1"
+      enabled: true
+      triggers:
+        - type: scheduled
+          with:
+            every: "1d"
+      steps:
+        - name: cluster_health
+          type: elasticsearch.cluster.health
+        - name: notify
+          type: slack.postMessage
+          connector-id: "Ops Slack API"
+          with:
+            channel: "alerts"
+            text: "Cluster status: {{ '{{ steps.cluster_health.output.status }}' }}"
+
+  # ---------------------------------------------------------------------------
+  # src: 別ファイルの YAML をそのまま読み込む
+  # ---------------------------------------------------------------------------
+  - name: "incident-enrichment"
+    src: "files/workflows/incident-enrichment.yml"
+
+  # ---------------------------------------------------------------------------
+  # yaml: 文字列で直接渡す
+  # ---------------------------------------------------------------------------
+  - name: "hello-world"
+    yaml: |
+      version: "1"
+      name: hello-world
+      enabled: false
+      triggers:
+        - type: manual
+      steps:
+        - name: say_hello
+          type: console
+          with:
+            message: "hello from ansible"

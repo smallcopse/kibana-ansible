@@ -1,0 +1,39 @@
+version: "1"
+name: incident-enrichment
+description: >-
+  アラート発火時に対象ホストの直近ログを取得し、Slack に要約を投稿する。
+enabled: true
+
+consts:
+  logIndex: "logs-*"
+  lookbackMinutes: 15
+
+triggers:
+  - type: alert
+
+steps:
+  - name: fetch_recent_logs
+    type: elasticsearch.search
+    with:
+      index: "{{ consts.logIndex }}"
+      query:
+        bool:
+          filter:
+            - term:
+                host.name: "{{ event.host.name }}"
+            - range:
+                "@timestamp":
+                  gte: "now-{{ consts.lookbackMinutes }}m"
+      size: 20
+      sort:
+        - "@timestamp": desc
+
+  - name: post_summary
+    type: slack.postMessage
+    connector-id: "Ops Slack API"
+    with:
+      channel: "incident-response"
+      text: >-
+        :rotating_light: {{ event.rule.name }} on {{ event.host.name }}
+        - {{ steps.fetch_recent_logs.output.hits.total.value }} log lines in the
+        last {{ consts.lookbackMinutes }}m

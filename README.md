@@ -8,8 +8,9 @@ Kibana の設定をコードとして管理するための Ansible コンテン�
 |------|------|
 | [`kibana_connectors`](roles/kibana_connectors/README.md) | Kibana のコネクター（Slack / Email / Webhook / PagerDuty / Index / Server log / Jira など）を Kibana API 経由で作成 / 更新 / 削除する。 |
 | [`kibana_rules`](roles/kibana_rules/README.md) | Kibana の **Observability → アラート** と **Stack Management → ルール**（アラートルール）を Kibana API 経由で作成 / 更新 / 削除する。 |
+| [`kibana_workflows`](roles/kibana_workflows/README.md) | Elastic Workflows（Kibana Workflows）の定義を Kibana API 経由で作成 / 更新 / 削除する（技術プレビュー・Enterprise ライセンス）。 |
 
-両 role は同じ接続変数（`kibana_url` / `kibana_auth_method` など）を使うため、
+各 role は同じ接続変数（`kibana_url` / `kibana_auth_method` など）を使うため、
 `group_vars` で設定を共用できます。
 
 ## 構成
@@ -20,10 +21,12 @@ inventory/hosts.ini            # localhost で実行する（Kibana へは HTTP 
 playbooks/
   manage-connectors.yml        # kibana_connectors role のみ
   manage-rules.yml             # kibana_rules role のみ
-  site.yml                     # コネクター -> ルール の順でまとめて適用
+  manage-workflows.yml         # kibana_workflows role のみ
+  site.yml                     # コネクター -> ルール -> workflow の順でまとめて適用
 examples/                      # extra-vars ファイルのサンプル（接続情報 + 定義）
 roles/kibana_connectors/
 roles/kibana_rules/
+roles/kibana_workflows/
 ```
 
 ## クイックスタート
@@ -35,6 +38,7 @@ roles/kibana_rules/
    - [`examples/connectors.yml`](examples/connectors.yml)
    - [`examples/observability-rules.yml`](examples/observability-rules.yml)
    - [`examples/stack-management-rules.yml`](examples/stack-management-rules.yml)
+   - [`examples/workflows.yml`](examples/workflows.yml)
 
    シークレットは `ansible-vault` で暗号化したファイルに置く:
 
@@ -55,15 +59,20 @@ roles/kibana_rules/
    # 個別に実行する場合
    ansible-playbook playbooks/manage-connectors.yml -e @examples/connectors.yml
    ansible-playbook playbooks/manage-rules.yml      -e @examples/observability-rules.yml
+   ansible-playbook playbooks/manage-workflows.yml  -e @examples/workflows.yml
    ```
 
-コネクターを先に作成し、ルールのアクションからは `connector_name` で参照します。
+コネクターを先に作成し、ルール / workflow のアクションからは `connector_name`
+（workflow は `connector-id`）で参照します。
 
 ## 要件
 
 * Ansible 2.14 以上
 * Python の `requests` は不要（role は `ansible.builtin.uri` を使用）。
+* `kibana_workflows` は Workflows が技術プレビュー・Enterprise ライセンスの機能で、
+  Kibana 側での有効化が必要です。
 
 変数の詳細と定義スキーマは各 role の README を参照:
 [kibana_connectors](roles/kibana_connectors/README.md) /
-[kibana_rules](roles/kibana_rules/README.md)。
+[kibana_rules](roles/kibana_rules/README.md) /
+[kibana_workflows](roles/kibana_workflows/README.md)。

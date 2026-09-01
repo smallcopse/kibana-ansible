@@ -1,0 +1,111 @@
+---
+# ============================================================================
+# workflow 1 件分の処理。main.yml の loop から `workflow` を受け取る。
+# 流れ:
+#   1. 定義の必須項目チェック
+#   2. workflow の YAML 定義文字列 (_wf_yaml) を組み立てる
+#      （definition: dict / yaml: 文字列 / src: ファイルパス のいずれか）
+#   3. 取得済みの一覧から同名 workflow を探す
+#   4a. state: absent  -> 存在すれば削除
+#   4b. state: present -> 無ければ作成 / あれば差分時（または force）に更新
+# ============================================================================
+
+# --- 1. 最低限必要な項目があるか確認 ---
+#   name は必須。present のときは定義ソース (definition / yaml / src) が 1 つ必要
+- name: "Validate workflow definition | {{ workflow.name | default('<unnamed>') }}"
+  ansible.builtin.assert:
+    that:
+      - workflow.name is defined and workflow.name | length > 0
+      - >-
+        (kibana_workflows_state != 'present') or
+        ([workflow.definition is defined, workflow.yaml is defined, workflow.src is defined]
+         | select | list | length == 1)
+    quiet: true
+    fail_msg: "each workflow needs `name`, and exactly one of `definition` / `yaml` / `src` when state=present"
+
+# --- 2. workflow の YAML 定義文字列を組み立てる ---
+#   definition (dict) の場合は name を強制的に workflow.name に合わせてから YAML 化。
+#   yaml / src はユーザーの記述をそのまま使う（name は一致させておくこと）。
+#   ansible.builtin.unsafe で包み、後続の body 生成で {{ }} が再展開されるのを防ぐ
+#   （workflow YAML 内の {{ consts.x }} などの Mustache 変数を保護する）。
+- name: "Build workflow YAML | {{ workflow.name }}"
+  ansible.builtin.set_fact:
+    _wf_yaml: >-
+      {{
+        (
+          (workflow.definition | combine({'name': workflow.name}) | to_nice_yaml(indent=2, sort_keys=false))
+          if workflow.definition is defined
+          else (workflow.yaml if workflow.yaml is defined
+                else lookup('ansible.builtin.file', workflow.src))
+        ) | ansible.builtin.unsafe
+      }}
+  when: kibana_workflows_state == 'present'
+
+# --- 3. 一覧から name が完全一致する workflow を取り出す ---
+- name: "Select existing workflow | {{ workflow.name }}"
+  ansible.builtin.set_fact:
+    _wf_existing: "{{ _kibana_existing_workflows | selectattr('name', 'defined') | selectattr('name', 'equalto', workflow.name) | list }}"
+    _wf_needs_update: false
+
+# ---------------------------------------------------------------------------
+# state: absent (削除)
+# ---------------------------------------------------------------------------
+- name: "Delete workflow | {{ workflow.name }}"
+  ansible.builtin.include_tasks: request.yml
+  vars:
+    kr_name: "DELETE {{ kibana_workflows_item_path }}/{{ _wf_existing[0].id }} ({{ workflow.name }})"
+    kr_method: DELETE
+    kr_url: "{{ _kibana_api_base }}{{ kibana_workflows_item_path }}/{{ _wf_existing[0].id }}"
+    kr_status: [200, 204]
+    kr_changed: true
+  when:
+    - kibana_workflows_state == 'absent'
+    - _wf_existing | length > 0
+
+# ---------------------------------------------------------------------------
+# state: present (作成 / 更新)
+# ---------------------------------------------------------------------------
+- name: "Manage workflow (present) | {{ workflow.name }}"
+  when: kibana_workflows_state == 'present'
+  block:
+
+    # --- 既存が無ければ新規作成する ---
+    #   body は { yaml: "<workflow YAML 全体>" }
+    - name: "Create workflow | {{ workflow.name }}"
+      ansible.builtin.include_tasks: request.yml
+      vars:
+        kr_name: "POST {{ kibana_workflows_item_path }} ({{ workflow.name }})"
+        kr_method: POST
+        kr_url: "{{ _kibana_api_base }}{{ kibana_workflows_item_path }}"
+        kr_body:
+          yaml: "{{ _wf_yaml }}"
+        kr_status: [200, 201]
+        kr_changed: true
+      when: _wf_existing | length == 0
+
+    # --- 既存の定義と比較して差分判定 ---
+    #   既存側に yaml フィールドがあれば、双方を from_yaml でパースして dict 比較する
+    #   （インデント等の書式差で誤検知しないため）。
+    #   比較できない場合は安全側に倒して「更新が必要」とみなす（PUT は冪等）。
+    - name: "Compute workflow drift | {{ workflow.name }}"
+      ansible.builtin.set_fact:
+        _wf_needs_update: >-
+          {{ (_wf_yaml | from_yaml) != (_wf_existing[0].yaml | from_yaml)
+             if (_wf_existing[0].yaml is defined)
+             else true }}
+      when: _wf_existing | length > 0
+
+    # --- 差分あり、または force_update 指定時のみ PUT で更新 ---
+    - name: "Update workflow | {{ workflow.name }}"
+      ansible.builtin.include_tasks: request.yml
+      vars:
+        kr_name: "PUT {{ kibana_workflows_item_path }}/{{ _wf_existing[0].id }} ({{ workflow.name }})"
+        kr_method: PUT
+        kr_url: "{{ _kibana_api_base }}{{ kibana_workflows_item_path }}/{{ _wf_existing[0].id }}"
+        kr_body:
+          yaml: "{{ _wf_yaml }}"
+        kr_status: [200]
+        kr_changed: true
+      when:
+        - _wf_existing | length > 0
+        - (_wf_needs_update | bool) or (kibana_workflows_force_update | bool)

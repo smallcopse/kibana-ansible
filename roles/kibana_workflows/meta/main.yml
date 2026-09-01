@@ -1,0 +1,27 @@
+---
+galaxy_info:
+  role_name: kibana_workflows
+  namespace: kibana_ansible
+  author: smallcopse
+  description: >-
+    Create and manage Elastic Workflows (Kibana Workflows) definitions
+    through the Kibana Workflows API.
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+  galaxy_tags:
+    - kibana
+    - elastic
+    - workflows
+    - automation
+    - monitoring
+
+dependencies: []

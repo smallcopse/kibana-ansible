@@ -1,0 +1,33 @@
+---
+# ============================================================================
+# Kibana API 呼び出しの共通処理。各タスクから include_tasks + vars で呼ぶ。
+# （kibana_rules / kibana_connectors role の同名ファイルと同じ内容）
+#
+# 呼び出し側で設定する変数:
+#   kr_name        - タスクの表示ラベル
+#   kr_method      - GET | POST | PUT | DELETE
+#   kr_url         - 完全な URL
+#   kr_body        - 送信する dict（任意。GET など不要なら省略）
+#   kr_status      - 許容するステータスコードのリスト（例: [200] / [204]）
+#   kr_changed     - 成功時に "changed" 扱いにするか（bool、既定 false）
+#   kr_check_mode  - bool（任意。--check 時にも必ず実行したい読み取り系は false）
+#
+# 実行結果は `kibana_request` として register され、呼び出し元から参照できる。
+# ============================================================================
+- name: "{{ kr_name }}"
+  ansible.builtin.uri:
+    url: "{{ kr_url }}"
+    method: "{{ kr_method }}"
+    headers: "{{ _kibana_headers }}"
+    url_username: "{{ kibana_username | default(omit, true) }}"
+    url_password: "{{ kibana_password | default(omit, true) }}"
+    force_basic_auth: "{{ kibana_auth_method == 'basic' }}"
+    validate_certs: "{{ kibana_validate_certs }}"
+    timeout: "{{ kibana_request_timeout }}"
+    body_format: json
+    body: "{{ kr_body | default(omit) }}"
+    status_code: "{{ kr_status }}"
+    return_content: "{{ kr_method == 'GET' }}"
+  register: kibana_request
+  check_mode: "{{ kr_check_mode | default(omit) }}"
+  changed_when: "{{ kr_changed | default(false) | bool }}"

@@ -1,0 +1,42 @@
+---
+# ------------------------------------------------------------------------------
+# 接続設定（kibana_rules / kibana_connectors role と同じ変数名。group_vars で共用可）
+# ------------------------------------------------------------------------------
+kibana_url: "http://localhost:5601"
+kibana_space: ""
+kibana_validate_certs: true
+kibana_request_timeout: 30
+
+kibana_auth_method: "api_key"          # "api_key" または "basic"
+kibana_api_key: ""                     # エンコード済み API キー
+kibana_username: ""
+kibana_password: ""
+
+# ------------------------------------------------------------------------------
+# Workflows API の設定
+#   Workflows は技術プレビュー段階（Enterprise ライセンス必須）で、
+#   API のパスやバージョンは変わる可能性があるため変数で上書きできるようにしている。
+#   Kibana 側で有効化が必要:
+#     workflows:ui:enabled は uiSettings、workflows:experimentalFeatures: true など
+# ------------------------------------------------------------------------------
+kibana_workflows_api_version: "2023-10-31"      # elastic-api-version ヘッダ
+kibana_workflows_list_path: "/api/workflows"            # 一覧取得 (GET)
+kibana_workflows_item_path: "/api/workflows/workflow"   # 作成 (POST) / 更新・削除 (…/{id})
+
+# 一覧レスポンスで配列が入っているキー。レスポンスが配列そのものなら無視される。
+kibana_workflows_list_key: "results"
+
+# ------------------------------------------------------------------------------
+# 動作設定
+# ------------------------------------------------------------------------------
+# present -> 未作成の workflow を作成し、定義に差分があれば更新する
+# absent  -> リストに指定した workflow (name で突合) が存在すれば削除する
+kibana_workflows_state: "present"
+
+# 差分を判定できない場合や、強制的に更新したい場合に true にする
+kibana_workflows_force_update: false
+
+# ------------------------------------------------------------------------------
+# 管理対象の workflow。スキーマとサンプルは README.md と examples/ を参照。
+# ------------------------------------------------------------------------------
+kibana_workflows: []
