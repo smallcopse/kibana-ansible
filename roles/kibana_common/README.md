@@ -20,6 +20,10 @@ Kibana 接続系の変数の唯一の定義場所。各ロールはこれらを�
 | `kibana_username` / `kibana_password` | `""` | `basic` のとき使用。 |
 | `kibana_extra_headers` | `{}` | 全リクエストに足す追加ヘッダ。呼び出し側が上書き。 |
 
+これらの型・選択肢・既定値は [`meta/argument_specs.yml`](meta/argument_specs.yml) の
+`connect` エントリポイントで定義しており、`connect.yml` を include したときに Ansible が
+自動検証します（`request.yml` にはスペックを付けていないため検証されません）。
+
 ### `tasks/connect.yml`
 
 接続チェックと、以下の fact 生成。各ロールの `tasks/main.yml` 冒頭で 1 回呼びます。

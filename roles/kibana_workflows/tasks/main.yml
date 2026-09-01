@@ -1,23 +1,16 @@
 ---
 # ============================================================================
 # エントリポイント。全体の流れ:
-#   1. workflow 固有の変数チェック
-#   2. Kibana 接続準備（kibana_common: 接続チェック + URL + ヘッダ生成）
+#   1. Kibana 接続準備（kibana_common: 接続チェック + URL + ヘッダ生成）
 #      Workflows API は elastic-api-version ヘッダが必要なので kibana_extra_headers で渡す
-#   3. workflow の一覧を一度だけ取得する
-#   4. kibana_workflows を 1 件ずつ manage_workflow.yml で処理
+#   2. workflow の一覧を一度だけ取得する
+#   3. kibana_workflows を 1 件ずつ manage_workflow.yml で処理
+#
+# ロール変数の型・選択肢チェックは meta/argument_specs.yml が自動で行う。
+# 各 workflow 要素の必須項目・相互依存は manage_workflow.yml でチェックする。
 # ============================================================================
 
-# --- 1. workflow 固有の変数チェック（接続系は kibana_common の connect.yml で実施） ---
-- name: Validate role variables
-  ansible.builtin.assert:
-    that:
-      - kibana_workflows_state in ['present', 'absent']
-      - kibana_workflows is iterable
-    quiet: true
-    fail_msg: "kibana_workflows role variables are invalid - check kibana_workflows_state / kibana_workflows"
-
-# --- 2. 接続準備。_kibana_api_base と _kibana_headers を生成する ---
+# --- 1. 接続準備。_kibana_api_base と _kibana_headers を生成する ---
 #   elastic-api-version ヘッダを追加ヘッダとして渡す
 - name: Set up Kibana connection
   ansible.builtin.include_role:
@@ -27,7 +20,7 @@
     kibana_extra_headers:
       elastic-api-version: "{{ kibana_workflows_api_version }}"
 
-# --- 3. workflow 一覧を一度だけ取得する（GET なので --check でも実行） ---
+# --- 2. workflow 一覧を一度だけ取得する（GET なので --check でも実行） ---
 - name: Fetch existing workflows
   ansible.builtin.include_role:
     name: kibana_common
@@ -48,7 +41,7 @@
          if (kibana_request.json is mapping and kibana_workflows_list_key in kibana_request.json)
          else kibana_request.json }}
 
-# --- 4. workflow を 1 件ずつ処理する（作成 / 更新 / 削除） ---
+# --- 3. workflow を 1 件ずつ処理する（作成 / 更新 / 削除） ---
 - name: Manage Kibana workflows
   ansible.builtin.include_tasks: manage_workflow.yml
   loop: "{{ kibana_workflows }}"

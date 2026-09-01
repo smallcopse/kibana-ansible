@@ -1,28 +1,21 @@
 ---
 # ============================================================================
 # エントリポイント。全体の流れ:
-#   1. コネクター固有の変数チェック
-#   2. Kibana 接続準備（kibana_common: 接続チェック + URL + ヘッダ生成）
-#   3. 既存コネクター一覧を一度だけ取得する
-#   4. kibana_connectors を 1 件ずつ manage_connector.yml で処理
+#   1. Kibana 接続準備（kibana_common: 接続チェック + URL + ヘッダ生成）
+#   2. 既存コネクター一覧を一度だけ取得する
+#   3. kibana_connectors を 1 件ずつ manage_connector.yml で処理
+#
+# ロール変数の型・選択肢チェックは meta/argument_specs.yml が自動で行う。
+# 各コネクター要素の必須項目は manage_connector.yml でチェックする。
 # ============================================================================
 
-# --- 1. コネクター固有の変数チェック（接続系は kibana_common の connect.yml で実施） ---
-- name: Validate role variables
-  ansible.builtin.assert:
-    that:
-      - kibana_connectors_state in ['present', 'absent']
-      - kibana_connectors is iterable
-    quiet: true
-    fail_msg: "kibana_connectors role variables are invalid - check kibana_connectors_state / kibana_connectors"
-
-# --- 2. 接続準備。_kibana_api_base と _kibana_headers を生成する ---
+# --- 1. 接続準備。_kibana_api_base と _kibana_headers を生成する ---
 - name: Set up Kibana connection
   ansible.builtin.include_role:
     name: kibana_common
     tasks_from: connect.yml
 
-# --- 3. 既存コネクター一覧を一度だけ取得する ---
+# --- 2. 既存コネクター一覧を一度だけ取得する ---
 #   コネクター数は通常少ないので、ルールのように 1 件ずつ検索せず全件取得して
 #   manage_connector.yml 内で name 突合する。GET なので --check でも実行する
 - name: Fetch existing Kibana connectors
@@ -40,7 +33,7 @@
   ansible.builtin.set_fact:
     _kibana_existing_connectors: "{{ kibana_request.json }}"
 
-# --- 4. コネクターを 1 件ずつ処理する（作成 / 更新 / 削除） ---
+# --- 3. コネクターを 1 件ずつ処理する（作成 / 更新 / 削除） ---
 - name: Manage Kibana connectors
   ansible.builtin.include_tasks: manage_connector.yml
   loop: "{{ kibana_connectors }}"

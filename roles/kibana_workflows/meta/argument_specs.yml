@@ -1,0 +1,48 @@
+---
+argument_specs:
+  main:
+    short_description: Elastic Workflows（Kibana Workflows）の定義を管理する
+    description:
+      - kibana_workflows に定義した workflow へ Kibana を収束させる（name で突合し作成 / 更新 / 削除）。
+      - Workflows は技術プレビュー（Enterprise ライセンス）。API のパス等は変数で上書きできる。
+      - 接続系変数は依存ロール kibana_common の argument_specs (connect) で検証される。
+    options:
+      kibana_workflows_state:
+        type: str
+        default: "present"
+        choices: ["present", "absent"]
+        description: present で作成・更新、absent で削除（リスト全体に適用）。
+      kibana_workflows_force_update:
+        type: bool
+        default: false
+        description: 差分が判定できない場合や強制更新したい場合に true。
+      kibana_workflows_api_version:
+        type: str
+        default: "2023-10-31"
+        description: elastic-api-version ヘッダの値。
+      kibana_workflows_list_path:
+        type: str
+        default: "/api/workflows"
+        description: 一覧取得 (GET) のパス。
+      kibana_workflows_item_path:
+        type: str
+        default: "/api/workflows/workflow"
+        description: 作成 (POST) / 更新・削除 (…/{id}) のパス。
+      kibana_workflows_list_query:
+        type: str
+        default: "?limit=1000"
+        description: 一覧取得 URL に付けるクエリ文字列（"?" から書く）。
+      kibana_workflows_list_key:
+        type: str
+        default: "results"
+        description: 一覧レスポンスで配列が入っているキー。配列そのものなら無視される。
+      kibana_workflows:
+        type: list
+        elements: dict
+        default: []
+        description:
+          - 管理する workflow 定義のリスト。各要素のキー
+          - "name (必須): 突合キー。workflow YAML 内の name と一致させる。"
+          - "state=present では definition (dict) / yaml (str) / src (ファイルパス) の"
+          - "いずれか 1 つを指定する。"
+          - 詳細は roles/kibana_workflows/README.md を参照。

@@ -1,0 +1,33 @@
+---
+argument_specs:
+  main:
+    short_description: Kibana の Observability / Stack Management アラートルールを管理する
+    description:
+      - kibana_rules に定義したルールへ Kibana を収束させる（name で突合し作成 / 更新 / 有効化 / 削除）。
+      - 接続系変数は依存ロール kibana_common の argument_specs (connect) で検証される。
+    options:
+      kibana_rules_state:
+        type: str
+        default: "present"
+        choices: ["present", "absent"]
+        description: present で作成・更新、absent で削除（リスト全体に適用）。
+      kibana_rules_resolve_connectors:
+        type: bool
+        default: true
+        description: アクション内の connector_name を GET /api/actions/connectors で id 解決するか。
+      kibana_rules_force_update:
+        type: bool
+        default: false
+        description: 差分が検出されなくても常に PUT する（actions のみの変更を反映したいとき）。
+      kibana_rules:
+        type: list
+        elements: dict
+        default: []
+        description:
+          - 管理するルール定義のリスト。各要素のキー
+          - "name (必須): 突合キー。"
+          - "rule_type_id / consumer: state=present で必須。"
+          - "enabled (bool, 既定 true), schedule (dict), tags (list),"
+          - "params (dict, ルールタイプ固有でそのまま送信), actions (list of dict),"
+          - "throttle / notify_when (旧形式の任意項目)。"
+          - 詳細は roles/kibana_rules/README.md を参照。

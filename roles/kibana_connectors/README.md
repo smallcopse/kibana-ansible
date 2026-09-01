@@ -32,6 +32,9 @@ preconfigured コネクター（`kibana.yml` で定義したもの）は API か
 
 ## role 変数
 
+型・選択肢・既定値は [`meta/argument_specs.yml`](meta/argument_specs.yml) で定義しており、
+実行前に Ansible が自動検証します。
+
 ### 接続
 
 接続変数は依存ロール [`kibana_common`](../kibana_common/README.md) で定義しています

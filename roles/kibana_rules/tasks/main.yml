@@ -1,35 +1,28 @@
 ---
 # ============================================================================
 # エントリポイント。全体の流れ:
-#   1. ルール固有の変数チェック
-#   2. Kibana 接続準備（kibana_common: 接続チェック + URL + ヘッダ生成）
-#   3. (任意) connector 名 -> id の対応表を取得
-#   4. kibana_rules を 1 件ずつ manage_rule.yml で処理
+#   1. Kibana 接続準備（kibana_common: 接続チェック + URL + ヘッダ生成）
+#   2. (任意) connector 名 -> id の対応表を取得
+#   3. kibana_rules を 1 件ずつ manage_rule.yml で処理
+#
+# ロール変数の型・選択肢チェックは meta/argument_specs.yml が自動で行う。
+# 各ルール要素の必須項目・相互依存は manage_rule.yml でチェックする。
 # ============================================================================
 
-# --- 1. ルール固有の変数チェック（接続系は kibana_common の connect.yml で実施） ---
-- name: Validate role variables
-  ansible.builtin.assert:
-    that:
-      - kibana_rules_state in ['present', 'absent']
-      - kibana_rules is iterable
-    quiet: true
-    fail_msg: "kibana_rules role variables are invalid - check kibana_rules_state / kibana_rules"
-
-# --- 2. 接続準備。_kibana_api_base と _kibana_headers を生成する ---
+# --- 1. 接続準備。_kibana_api_base と _kibana_headers を生成する ---
 - name: Set up Kibana connection
   ansible.builtin.include_role:
     name: kibana_common
     tasks_from: connect.yml
 
-# --- 3a. connector 対応表を空で初期化 ---
+# --- 2a. connector 対応表を空で初期化 ---
 #   resolve_connectors.yml を実行しない場合でも manage_rule.yml が
 #   この変数を参照するため、必ず定義しておく
 - name: Initialise connector name -> id map
   ansible.builtin.set_fact:
     _kibana_connector_map: {}
 
-# --- 3b. Kibana から connector 一覧を取得し、名前 -> id の対応表を作る ---
+# --- 2b. Kibana から connector 一覧を取得し、名前 -> id の対応表を作る ---
 #   ルールのアクションで connector_name を使えるようにするため。
 #   present のとき、機能が有効かつルールが 1 件以上ある場合だけ実行する
 - name: Resolve Kibana connectors
@@ -39,7 +32,7 @@
     - kibana_rules_resolve_connectors | bool
     - kibana_rules | length > 0
 
-# --- 4. ルールを 1 件ずつ処理する（検索 -> 作成/更新/有効・無効/削除） ---
+# --- 3. ルールを 1 件ずつ処理する（検索 -> 作成/更新/有効・無効/削除） ---
 #   loop_var を rule にして manage_rule.yml 内で参照する
 - name: Manage Kibana rules
   ansible.builtin.include_tasks: manage_rule.yml

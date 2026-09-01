@@ -57,8 +57,9 @@ ansible-playbook playbooks/site.yml -e @vars/kibana.yml --ask-vault-pass
   vars: { kr_name: ..., kr_method: ..., kr_url: ..., kr_status: [...], ... }
 ```
 
-- `connect.yml` → 接続系 assert + `_kibana_api_base` / `_kibana_headers` を set_fact
-- `request.yml` → `uri` ラッパ。呼び出し規約は下記
+- `connect.yml` → 認証情報の相互依存 assert + `_kibana_api_base` / `_kibana_headers` を set_fact
+  （接続変数の型・choices は `kibana_common/meta/argument_specs.yml` の `connect` で検証）
+- `request.yml` → `uri` ラッパ。呼び出し規約は下記（`argument_specs` は無し = 検証されない）
 - `include_role`（`public: false`）でも `set_fact` / `register` の結果は host fact として
   呼び出し元に伝播する、という前提で全体が組まれている
 
@@ -81,6 +82,13 @@ ansible-playbook playbooks/site.yml -e @vars/kibana.yml --ask-vault-pass
 - `tasks/main.yml`（前処理 + ループ）→ `tasks/manage_<x>.yml`（1 件分、`loop` で include_tasks）
 - **突合は `name`**。存在すれば PUT、無ければ POST、`absent` なら DELETE
 - ループで持ち越す一時 fact（`_rule_actions` など）は `manage_<x>.yml` 冒頭で必ずリセットする
+- **変数検証の分担**:
+  - ロール変数の型 / choices / 既定値 → `meta/argument_specs.yml`（Ansible が自動検証）
+    - 各管理ロールは `main` エントリポイント、`kibana_common` は `connect` エントリポイント
+    - リスト変数は `type: list, elements: dict` まで。要素の `options` は定義しない
+      （欠けたキーへの `None` 注入で `'key' in item` 判定が壊れるのを避けるため）
+  - 要素の必須項目・相互依存（「present なら X 必須」「1つだけ指定」）→ `manage_<x>.yml` の `assert`
+  - 認証方式に応じた必須（api_key なら key 必須）→ `kibana_common/tasks/connect.yml` の `assert`
 - 差分検出は限定的で、各ロールに「検出できない差分」の注記がある:
   - rules: `actions` のみの変更は非検出 → `kibana_rules_force_update`
   - connectors: `secrets` は Kibana が返さないため非検出 → `kibana_connectors_force_update`
@@ -107,8 +115,9 @@ ansible-playbook playbooks/site.yml -e @vars/kibana.yml --ask-vault-pass
 - **コメントは日本語**、タスクの `name:` は英語（識別子的な扱い）
 - モジュールは完全修飾名（`ansible.builtin.*`）
 - 新しい管理対象を追加する = 既存ロールの骨格を踏襲した新ロールを作る
-  （`meta` で `kibana_common` 依存、`tasks/main.yml` で connect → 一覧取得 → ループ、
-  `tasks/manage_<x>.yml` で name 突合 → CRUD、`request.yml` を `include_role` で利用）
+  （`meta/main.yml` で `kibana_common` 依存、`meta/argument_specs.yml` で `main` を定義、
+  `tasks/main.yml` で connect → 一覧取得 → ループ、`tasks/manage_<x>.yml` で name 突合 → CRUD、
+  `request.yml` を `include_role` で利用）
 - `examples/*.yml` は「接続情報 + 定義リスト」を含む extra-vars ファイル。
   シークレットは `{{ vault_* }}` 参照にとどめ、値は書かない（`.gitignore` で `**/vault.yml` 除外）
 

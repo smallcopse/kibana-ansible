@@ -1,0 +1,48 @@
+---
+argument_specs:
+  # `include_role: { name: kibana_common, tasks_from: connect.yml }` で検証される。
+  # 接続系変数の型・選択肢・既定値をここで一元的にチェックする
+  # （api_key/basic の相互依存だけは connect.yml 内の assert で見る）。
+  connect:
+    short_description: Kibana 接続準備（接続チェック + _kibana_api_base / _kibana_headers 生成）
+    description:
+      - Kibana へのベース URL と認証ヘッダを組み立て、fact として公開する。
+      - 各管理ロールの tasks/main.yml 冒頭で 1 回だけ呼び出す。
+    options:
+      kibana_url:
+        type: str
+        default: "http://localhost:5601"
+        description: Kibana のベース URL。末尾に /api は付けない。
+      kibana_space:
+        type: str
+        default: ""
+        description: 対象スペース id。空文字はデフォルトスペース。
+      kibana_validate_certs:
+        type: bool
+        default: true
+        description: TLS 証明書を検証するか。自己署名なら false。
+      kibana_request_timeout:
+        type: int
+        default: 30
+        description: HTTP リクエストのタイムアウト（秒）。
+      kibana_auth_method:
+        type: str
+        default: "api_key"
+        choices: ["api_key", "basic"]
+        description: 認証方式。
+      kibana_api_key:
+        type: str
+        default: ""
+        description: エンコード済み API キー（base64("<id>:<api_key>")）。api_key 方式で必須。
+      kibana_username:
+        type: str
+        default: ""
+        description: basic 方式のユーザー名。
+      kibana_password:
+        type: str
+        default: ""
+        description: basic 方式のパスワード。
+      kibana_extra_headers:
+        type: dict
+        default: {}
+        description: 全リクエストに足す追加ヘッダ。呼び出し側ロールが指定する。

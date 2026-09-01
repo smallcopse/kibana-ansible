@@ -1,0 +1,28 @@
+---
+argument_specs:
+  main:
+    short_description: Kibana のコネクターを管理する
+    description:
+      - kibana_connectors に定義したコネクターへ Kibana を収束させる（name で突合し作成 / 更新 / 削除）。
+      - 接続系変数は依存ロール kibana_common の argument_specs (connect) で検証される。
+    options:
+      kibana_connectors_state:
+        type: str
+        default: "present"
+        choices: ["present", "absent"]
+        description: present で作成・更新、absent で削除（リスト全体に適用）。
+      kibana_connectors_force_update:
+        type: bool
+        default: false
+        description: 差分が検出されなくても常に PUT する（secrets の入れ替えに使う）。
+      kibana_connectors:
+        type: list
+        elements: dict
+        default: []
+        description:
+          - 管理するコネクター定義のリスト。各要素のキー
+          - "name (必須): 突合キー。"
+          - "connector_type_id: state=present で必須（例 .slack / .email / .webhook）。"
+          - "config (dict): 型ごとの設定。指定があるときだけ送信。"
+          - "secrets (dict): トークン等。指定があるときだけ送信。Kibana は返さないため差分比較不可。"
+          - 詳細は roles/kibana_connectors/README.md を参照。

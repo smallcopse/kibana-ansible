@@ -11,18 +11,16 @@
 #   _kibana_headers  : 全リクエスト共通の HTTP ヘッダ
 # ============================================================================
 
-# --- 接続系の変数チェック（state など各ロール固有の項目は各ロール側でチェック） ---
-- name: Validate Kibana connection variables
+# --- 認証情報の相互依存チェック ---
+#   型・選択肢・既定値は meta/argument_specs.yml (connect) で検証済み。
+#   ここでは argument_specs で表現できない「方式に応じた必須」だけを見る。
+- name: Validate Kibana credentials for the chosen auth method
   ansible.builtin.assert:
     that:
-      - kibana_url | length > 0
-      - kibana_auth_method in ['api_key', 'basic']
-      # api_key 方式なら API キーが必要
       - (kibana_auth_method != 'api_key') or (kibana_api_key | length > 0)
-      # basic 方式ならユーザー名とパスワードが必要
       - (kibana_auth_method != 'basic') or (kibana_username | length > 0 and kibana_password | length > 0)
     quiet: true
-    fail_msg: "Kibana connection variables are invalid - check kibana_url / kibana_auth_method / credentials"
+    fail_msg: "kibana_auth_method={{ kibana_auth_method }} には対応する認証情報が必要です（kibana_api_key / kibana_username+kibana_password）"
 
 # --- API のベース URL を作る ---
 #   末尾のスラッシュを除去し、スペース指定があれば "/s/<space>" を付与する
