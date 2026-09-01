@@ -7,7 +7,9 @@
 
 # --- connector 一覧を取得（GET なので --check でも実行する） ---
 - name: Fetch existing Kibana connectors
-  ansible.builtin.include_tasks: request.yml
+  ansible.builtin.include_role:
+    name: kibana_common
+    tasks_from: request.yml
   vars:
     kr_name: "GET /api/actions/connectors"
     kr_method: GET

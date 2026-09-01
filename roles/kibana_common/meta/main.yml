@@ -1,0 +1,18 @@
+---
+galaxy_info:
+  role_name: kibana_common
+  namespace: kibana_ansible
+  author: smallcopse
+  description: >-
+    Shared building blocks for the Kibana roles: connection variables,
+    connection setup (base URL + auth headers) and a Kibana API request wrapper.
+    Not used on its own - it is a dependency of kibana_connectors / kibana_rules /
+    kibana_workflows.
+  license: MIT
+  min_ansible_version: "2.14"
+  galaxy_tags:
+    - kibana
+    - elastic
+    - monitoring
+
+dependencies: []

@@ -24,6 +24,7 @@ role が Kibana をその状態に収束させます。
 ## 要件
 
 * Ansible 2.14 以上（使用するのは `ansible.builtin` モジュールのみ。追加コレクション不要）。
+* 同梱の [`kibana_common`](../kibana_common/README.md) ロール（`meta` の依存）。
 * Ansible コントローラーから Kibana へネットワーク到達できること
   （role は既定で `hosts: localhost` で実行され、Kibana へは SSH ではなく HTTP で接続します）。
 * **Management → アラートルール**権限と、管理するルールタイプに対応する機能権限
@@ -33,15 +34,9 @@ role が Kibana をその状態に収束させます。
 
 ### 接続
 
-| 変数 | 既定値 | 備考 |
-|------|--------|------|
-| `kibana_url` | `http://localhost:5601` | ベース URL。末尾に `/api` は付けない。 |
-| `kibana_space` | `""` | スペース id。空はデフォルトスペース。 |
-| `kibana_validate_certs` | `true` | 自己署名証明書の場合は `false`。 |
-| `kibana_request_timeout` | `30` | 秒。 |
-| `kibana_auth_method` | `api_key` | `api_key` または `basic`。 |
-| `kibana_api_key` | `""` | **エンコード済み**の API キー（base64 `id:api_key`）。 |
-| `kibana_username` / `kibana_password` | `""` | `kibana_auth_method: basic` のときに使用。 |
+接続変数は依存ロール [`kibana_common`](../kibana_common/README.md) で定義しています
+（`kibana_url` / `kibana_space` / `kibana_validate_certs` / `kibana_request_timeout` /
+`kibana_auth_method` / `kibana_api_key` / `kibana_username` / `kibana_password`）。
 
 ### 動作
 

@@ -6,12 +6,13 @@ Kibana の設定をコードとして管理するための Ansible コンテン�
 
 | role | 目的 |
 |------|------|
+| [`kibana_common`](roles/kibana_common/README.md) | 下記 3 ロールの共通部品（接続変数・接続処理・API リクエストラッパ）。単体では使わない。 |
 | [`kibana_connectors`](roles/kibana_connectors/README.md) | Kibana のコネクター（Slack / Email / Webhook / PagerDuty / Index / Server log / Jira など）を Kibana API 経由で作成 / 更新 / 削除する。 |
 | [`kibana_rules`](roles/kibana_rules/README.md) | Kibana の **Observability → アラート** と **Stack Management → ルール**（アラートルール）を Kibana API 経由で作成 / 更新 / 削除する。 |
 | [`kibana_workflows`](roles/kibana_workflows/README.md) | Elastic Workflows（Kibana Workflows）の定義を Kibana API 経由で作成 / 更新 / 削除する（技術プレビュー・Enterprise ライセンス）。 |
 
-各 role は同じ接続変数（`kibana_url` / `kibana_auth_method` など）を使うため、
-`group_vars` で設定を共用できます。
+接続変数（`kibana_url` / `kibana_auth_method` など）は `kibana_common` に集約され、
+3 ロールが `meta` の依存として読み込みます。`group_vars` で設定を一括指定できます。
 
 ## 構成
 
@@ -24,6 +25,7 @@ playbooks/
   manage-workflows.yml         # kibana_workflows role のみ
   site.yml                     # コネクター -> ルール -> workflow の順でまとめて適用
 examples/                      # extra-vars ファイルのサンプル（接続情報 + 定義）
+roles/kibana_common/           # 共通部品（接続変数 / connect.yml / request.yml）
 roles/kibana_connectors/
 roles/kibana_rules/
 roles/kibana_workflows/

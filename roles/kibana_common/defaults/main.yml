@@ -1,0 +1,28 @@
+---
+# ==============================================================================
+# Kibana 接続設定の唯一の定義場所。
+# kibana_connectors / kibana_rules / kibana_workflows は本ロールを依存に持つため、
+# これらの変数はここだけで定義すればよい（各ロールで重複定義しない）。
+# ==============================================================================
+
+kibana_url: "http://localhost:5601"
+
+# 対象の Kibana スペース。"" (空) はデフォルトスペース。
+kibana_space: ""
+
+kibana_validate_certs: true
+kibana_request_timeout: 30
+
+# 認証方式: "api_key" または "basic"
+kibana_auth_method: "api_key"
+
+# api_key 方式: エンコード済み API キー (base64("<id>:<api_key>"))
+kibana_api_key: ""
+
+# basic 方式
+kibana_username: ""
+kibana_password: ""
+
+# 全リクエストに追加したいヘッダ（呼び出し側ロールが上書きする。
+# 例: kibana_workflows は {elastic-api-version: "2023-10-31"} を渡す）
+kibana_extra_headers: {}

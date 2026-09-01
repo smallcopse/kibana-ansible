@@ -1,16 +1,18 @@
 ---
 # ============================================================================
-# Kibana API 呼び出しの共通処理。各タスクから include_tasks + vars で呼ぶ。
-# （kibana_rules / kibana_connectors role の同名ファイルと同じ内容）
-#
-# 呼び出し側で設定する変数:
-#   kr_name        - タスクの表示ラベル
-#   kr_method      - GET | POST | PUT | DELETE
-#   kr_url         - 完全な URL
-#   kr_body        - 送信する dict（任意。GET など不要なら省略）
-#   kr_status      - 許容するステータスコードのリスト（例: [200] / [204]）
-#   kr_changed     - 成功時に "changed" 扱いにするか（bool、既定 false）
-#   kr_check_mode  - bool（任意。--check 時にも必ず実行したい読み取り系は false）
+# Kibana API 呼び出しの共通ラッパ。各ロールから次のように呼ぶ:
+#   - name: "..."
+#     ansible.builtin.include_role:
+#       name: kibana_common
+#       tasks_from: request.yml
+#     vars:
+#       kr_name: "POST /api/..."
+#       kr_method: POST
+#       kr_url: "{{ _kibana_api_base }}/api/..."
+#       kr_body: { ... }        # 任意
+#       kr_status: [200]
+#       kr_changed: true        # 任意（既定 false）
+#       kr_check_mode: false    # 任意（読み取り系で --check 時も実行したいとき）
 #
 # 実行結果は `kibana_request` として register され、呼び出し元から参照できる。
 # ============================================================================

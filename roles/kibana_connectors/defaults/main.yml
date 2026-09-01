@@ -1,24 +1,9 @@
 ---
 # ------------------------------------------------------------------------------
-# 接続設定（kibana_rules role と同じ変数名。group_vars で共用できる）
+# 接続設定は kibana_common ロール（依存）の defaults で定義している。
+#   kibana_url / kibana_space / kibana_validate_certs / kibana_request_timeout /
+#   kibana_auth_method / kibana_api_key / kibana_username / kibana_password
 # ------------------------------------------------------------------------------
-kibana_url: "http://localhost:5601"
-
-# コネクターを管理する Kibana スペース。"" (空) はデフォルトスペース。
-kibana_space: ""
-
-kibana_validate_certs: true
-kibana_request_timeout: 30
-
-# 認証方式: "api_key" または "basic"
-kibana_auth_method: "api_key"
-
-# api_key 方式の場合: エンコード済み API キー (base64("<id>:<api_key>"))
-kibana_api_key: ""
-
-# basic 方式の場合
-kibana_username: ""
-kibana_password: ""
 
 # ------------------------------------------------------------------------------
 # 動作設定

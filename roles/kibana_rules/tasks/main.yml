@@ -1,54 +1,26 @@
 ---
 # ============================================================================
 # エントリポイント。全体の流れ:
-#   1. 変数チェック
-#   2. Kibana API のベース URL と認証ヘッダを組み立てる
+#   1. ルール固有の変数チェック
+#   2. Kibana 接続準備（kibana_common: 接続チェック + URL + ヘッダ生成）
 #   3. (任意) connector 名 -> id の対応表を取得
 #   4. kibana_rules を 1 件ずつ manage_rule.yml で処理
 # ============================================================================
 
-# --- 1. 必須変数と値の妥当性をチェック（不備があればここで失敗させる） ---
+# --- 1. ルール固有の変数チェック（接続系は kibana_common の connect.yml で実施） ---
 - name: Validate role variables
   ansible.builtin.assert:
     that:
-      # 接続先 URL は必須
-      - kibana_url | length > 0
-      # 認証方式は api_key か basic のどちらか
-      - kibana_auth_method in ['api_key', 'basic']
-      # api_key 方式なら API キーが必要
-      - (kibana_auth_method != 'api_key') or (kibana_api_key | length > 0)
-      # basic 方式ならユーザー名とパスワードが必要
-      - (kibana_auth_method != 'basic') or (kibana_username | length > 0 and kibana_password | length > 0)
-      # state は present / absent のみ
       - kibana_rules_state in ['present', 'absent']
-      # kibana_rules はリスト（イテラブル）であること
       - kibana_rules is iterable
     quiet: true
-    fail_msg: "kibana_rules role variables are invalid - check auth settings and kibana_rules_state"
+    fail_msg: "kibana_rules role variables are invalid - check kibana_rules_state / kibana_rules"
 
-# --- 2a. API 呼び出しのベース URL を作る ---
-#   末尾のスラッシュを除去し、スペース指定があれば "/s/<space>" を付与する
-#   （デフォルトスペースのときは何も付けない）
-- name: Build Kibana API base URL
-  ansible.builtin.set_fact:
-    _kibana_api_base: >-
-      {{ (kibana_url | regex_replace('/+$', ''))
-         ~ (('/s/' ~ kibana_space) if (kibana_space | length > 0) else '') }}
-
-# --- 2b. 全リクエストで共通して使う HTTP ヘッダを作る ---
-#   kbn-xsrf は Kibana の CSRF 対策で必須。
-#   api_key 方式のときだけ Authorization: ApiKey ヘッダを追加する
-#   （basic 方式では uri モジュールの url_username/password 側で認証する）
-- name: Build Kibana request headers
-  ansible.builtin.set_fact:
-    _kibana_headers: >-
-      {{ _base_headers
-         | combine({'Authorization': 'ApiKey ' ~ kibana_api_key}
-                   if kibana_auth_method == 'api_key' else {}) }}
-  vars:
-    _base_headers:
-      kbn-xsrf: "ansible"
-      Content-Type: "application/json"
+# --- 2. 接続準備。_kibana_api_base と _kibana_headers を生成する ---
+- name: Set up Kibana connection
+  ansible.builtin.include_role:
+    name: kibana_common
+    tasks_from: connect.yml
 
 # --- 3a. connector 対応表を空で初期化 ---
 #   resolve_connectors.yml を実行しない場合でも manage_rule.yml が

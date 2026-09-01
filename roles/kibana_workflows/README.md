@@ -28,10 +28,11 @@
 
 ## role 変数
 
-### 接続（他 role と共通）
+### 接続
 
-`kibana_url` / `kibana_space` / `kibana_validate_certs` / `kibana_request_timeout` /
-`kibana_auth_method` / `kibana_api_key` / `kibana_username` / `kibana_password`
+接続変数は依存ロール [`kibana_common`](../kibana_common/README.md) で定義しています
+（`kibana_url` / `kibana_space` / `kibana_validate_certs` / `kibana_request_timeout` /
+`kibana_auth_method` / `kibana_api_key` / `kibana_username` / `kibana_password`）。
 
 ### Workflows API / 動作
 

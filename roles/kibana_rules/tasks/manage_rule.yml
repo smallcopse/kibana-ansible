@@ -34,7 +34,9 @@
 #   _find は部分一致検索なので、このあと厳密一致で絞り込む。
 #   GET なので kr_check_mode: false（--check でも実行して差分判定できるようにする）
 - name: "Find existing rule | {{ rule.name }}"
-  ansible.builtin.include_tasks: request.yml
+  ansible.builtin.include_role:
+    name: kibana_common
+    tasks_from: request.yml
   vars:
     kr_name: "GET /api/alerting/rules/_find (name={{ rule.name }})"
     kr_method: GET
@@ -54,7 +56,9 @@
 
 # --- 既存ルールがあれば id を指定して削除する ---
 - name: "Delete rule | {{ rule.name }}"
-  ansible.builtin.include_tasks: request.yml
+  ansible.builtin.include_role:
+    name: kibana_common
+    tasks_from: request.yml
   vars:
     kr_name: "DELETE /api/alerting/rule/{{ _rule_existing[0].id }} ({{ rule.name }})"
     kr_method: DELETE
@@ -137,7 +141,9 @@
 
     # --- 既存が無ければ新規作成する ---
     - name: "Create rule | {{ rule.name }}"
-      ansible.builtin.include_tasks: request.yml
+      ansible.builtin.include_role:
+        name: kibana_common
+        tasks_from: request.yml
       vars:
         kr_name: "POST /api/alerting/rule ({{ rule.name }})"
         kr_method: POST
@@ -168,7 +174,9 @@
 
     # --- 差分ありのとき（または force_update 指定時）だけ PUT で更新 ---
     - name: "Update rule | {{ rule.name }}"
-      ansible.builtin.include_tasks: request.yml
+      ansible.builtin.include_role:
+        name: kibana_common
+        tasks_from: request.yml
       vars:
         kr_name: "PUT /api/alerting/rule/{{ _rule_existing[0].id }} ({{ rule.name }})"
         kr_method: PUT
@@ -183,7 +191,9 @@
     # --- enabled: true にしたいのに現状が無効なら有効化する ---
     #   （新規作成分は作成 body の enabled で設定済みなので既存のみ対象）
     - name: "Enable rule | {{ rule.name }}"
-      ansible.builtin.include_tasks: request.yml
+      ansible.builtin.include_role:
+        name: kibana_common
+        tasks_from: request.yml
       vars:
         kr_name: "POST /api/alerting/rule/{{ _rule_existing[0].id }}/_enable ({{ rule.name }})"
         kr_method: POST
@@ -197,7 +207,9 @@
 
     # --- enabled: false にしたいのに現状が有効なら無効化する ---
     - name: "Disable rule | {{ rule.name }}"
-      ansible.builtin.include_tasks: request.yml
+      ansible.builtin.include_role:
+        name: kibana_common
+        tasks_from: request.yml
       vars:
         kr_name: "POST /api/alerting/rule/{{ _rule_existing[0].id }}/_disable ({{ rule.name }})"
         kr_method: POST

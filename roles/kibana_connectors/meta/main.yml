@@ -25,4 +25,6 @@ galaxy_info:
     - connectors
     - monitoring
 
-dependencies: []
+dependencies:
+  # 接続変数（kibana_url など）と connect.yml / request.yml を提供する
+  - role: kibana_common

@@ -1,0 +1,50 @@
+---
+# ============================================================================
+# Kibana への接続準備。各ロールの tasks/main.yml の先頭で 1 回だけ呼ぶ:
+#   - name: Set up Kibana connection
+#     ansible.builtin.include_role:
+#       name: kibana_common
+#       tasks_from: connect.yml
+#
+# 生成する fact:
+#   _kibana_api_base : スペースを考慮した API のベース URL
+#   _kibana_headers  : 全リクエスト共通の HTTP ヘッダ
+# ============================================================================
+
+# --- 接続系の変数チェック（state など各ロール固有の項目は各ロール側でチェック） ---
+- name: Validate Kibana connection variables
+  ansible.builtin.assert:
+    that:
+      - kibana_url | length > 0
+      - kibana_auth_method in ['api_key', 'basic']
+      # api_key 方式なら API キーが必要
+      - (kibana_auth_method != 'api_key') or (kibana_api_key | length > 0)
+      # basic 方式ならユーザー名とパスワードが必要
+      - (kibana_auth_method != 'basic') or (kibana_username | length > 0 and kibana_password | length > 0)
+    quiet: true
+    fail_msg: "Kibana connection variables are invalid - check kibana_url / kibana_auth_method / credentials"
+
+# --- API のベース URL を作る ---
+#   末尾のスラッシュを除去し、スペース指定があれば "/s/<space>" を付与する
+- name: Build Kibana API base URL
+  ansible.builtin.set_fact:
+    _kibana_api_base: >-
+      {{ (kibana_url | regex_replace('/+$', ''))
+         ~ (('/s/' ~ kibana_space) if (kibana_space | length > 0) else '') }}
+
+# --- 全リクエスト共通の HTTP ヘッダを作る ---
+#   kbn-xsrf は Kibana の CSRF 対策で必須。
+#   api_key 方式のときだけ Authorization: ApiKey を付与（basic 方式は uri の
+#   url_username/password 側で認証する）。
+#   kibana_extra_headers はロール固有の追加ヘッダ（例: elastic-api-version）。
+- name: Build Kibana request headers
+  ansible.builtin.set_fact:
+    _kibana_headers: >-
+      {{ _base_headers
+         | combine(kibana_extra_headers | default({}, true))
+         | combine({'Authorization': 'ApiKey ' ~ kibana_api_key}
+                   if kibana_auth_method == 'api_key' else {}) }}
+  vars:
+    _base_headers:
+      kbn-xsrf: "ansible"
+      Content-Type: "application/json"

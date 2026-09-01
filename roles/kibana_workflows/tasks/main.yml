@@ -1,51 +1,37 @@
 ---
 # ============================================================================
 # エントリポイント。全体の流れ:
-#   1. 変数チェック
-#   2. Kibana API のベース URL と認証ヘッダを組み立てる
-#      （Workflows API は elastic-api-version ヘッダが必要）
+#   1. workflow 固有の変数チェック
+#   2. Kibana 接続準備（kibana_common: 接続チェック + URL + ヘッダ生成）
+#      Workflows API は elastic-api-version ヘッダが必要なので kibana_extra_headers で渡す
 #   3. workflow の一覧を一度だけ取得する
 #   4. kibana_workflows を 1 件ずつ manage_workflow.yml で処理
 # ============================================================================
 
-# --- 1. 必須変数と値の妥当性をチェック ---
+# --- 1. workflow 固有の変数チェック（接続系は kibana_common の connect.yml で実施） ---
 - name: Validate role variables
   ansible.builtin.assert:
     that:
-      - kibana_url | length > 0
-      - kibana_auth_method in ['api_key', 'basic']
-      - (kibana_auth_method != 'api_key') or (kibana_api_key | length > 0)
-      - (kibana_auth_method != 'basic') or (kibana_username | length > 0 and kibana_password | length > 0)
       - kibana_workflows_state in ['present', 'absent']
       - kibana_workflows is iterable
     quiet: true
-    fail_msg: "kibana_workflows role variables are invalid - check auth settings and kibana_workflows_state"
+    fail_msg: "kibana_workflows role variables are invalid - check kibana_workflows_state / kibana_workflows"
 
-# --- 2a. API 呼び出しのベース URL を作る（末尾スラッシュ除去 + スペース付与） ---
-- name: Build Kibana API base URL
-  ansible.builtin.set_fact:
-    _kibana_api_base: >-
-      {{ (kibana_url | regex_replace('/+$', ''))
-         ~ (('/s/' ~ kibana_space) if (kibana_space | length > 0) else '') }}
-
-# --- 2b. 全リクエスト共通の HTTP ヘッダを作る ---
-#   kbn-xsrf は必須。Workflows API は elastic-api-version ヘッダも必要。
-#   api_key 方式のときだけ Authorization ヘッダを追加する
-- name: Build Kibana request headers
-  ansible.builtin.set_fact:
-    _kibana_headers: >-
-      {{ _base_headers
-         | combine({'Authorization': 'ApiKey ' ~ kibana_api_key}
-                   if kibana_auth_method == 'api_key' else {}) }}
+# --- 2. 接続準備。_kibana_api_base と _kibana_headers を生成する ---
+#   elastic-api-version ヘッダを追加ヘッダとして渡す
+- name: Set up Kibana connection
+  ansible.builtin.include_role:
+    name: kibana_common
+    tasks_from: connect.yml
   vars:
-    _base_headers:
-      kbn-xsrf: "ansible"
-      Content-Type: "application/json"
+    kibana_extra_headers:
       elastic-api-version: "{{ kibana_workflows_api_version }}"
 
-# --- 2c. workflow 一覧を一度だけ取得する（GET なので --check でも実行） ---
+# --- 3. workflow 一覧を一度だけ取得する（GET なので --check でも実行） ---
 - name: Fetch existing workflows
-  ansible.builtin.include_tasks: request.yml
+  ansible.builtin.include_role:
+    name: kibana_common
+    tasks_from: request.yml
   vars:
     kr_name: "GET {{ kibana_workflows_list_path }}"
     kr_method: GET
@@ -62,7 +48,7 @@
          if (kibana_request.json is mapping and kibana_workflows_list_key in kibana_request.json)
          else kibana_request.json }}
 
-# --- 3. workflow を 1 件ずつ処理する（作成 / 更新 / 削除） ---
+# --- 4. workflow を 1 件ずつ処理する（作成 / 更新 / 削除） ---
 - name: Manage Kibana workflows
   ansible.builtin.include_tasks: manage_workflow.yml
   loop: "{{ kibana_workflows }}"

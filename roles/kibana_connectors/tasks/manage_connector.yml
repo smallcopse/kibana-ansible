@@ -43,7 +43,9 @@
 
 # --- 通常のコネクターは id を指定して削除する ---
 - name: "Delete connector | {{ connector.name }}"
-  ansible.builtin.include_tasks: request.yml
+  ansible.builtin.include_role:
+    name: kibana_common
+    tasks_from: request.yml
   vars:
     kr_name: "DELETE /api/actions/connector/{{ _conn_existing[0].id }} ({{ connector.name }})"
     kr_method: DELETE
@@ -84,7 +86,9 @@
 
     # --- 既存が無ければ新規作成する ---
     - name: "Create connector | {{ connector.name }}"
-      ansible.builtin.include_tasks: request.yml
+      ansible.builtin.include_role:
+        name: kibana_common
+        tasks_from: request.yml
       vars:
         kr_name: "POST /api/actions/connector ({{ connector.name }})"
         kr_method: POST
@@ -117,7 +121,9 @@
 
     # --- 差分あり、または force_update 指定時のみ PUT で更新 ---
     - name: "Update connector | {{ connector.name }}"
-      ansible.builtin.include_tasks: request.yml
+      ansible.builtin.include_role:
+        name: kibana_common
+        tasks_from: request.yml
       vars:
         kr_name: "PUT /api/actions/connector/{{ _conn_existing[0].id }} ({{ connector.name }})"
         kr_method: PUT

@@ -51,7 +51,9 @@
 # state: absent (削除)
 # ---------------------------------------------------------------------------
 - name: "Delete workflow | {{ workflow.name }}"
-  ansible.builtin.include_tasks: request.yml
+  ansible.builtin.include_role:
+    name: kibana_common
+    tasks_from: request.yml
   vars:
     kr_name: "DELETE {{ kibana_workflows_item_path }}/{{ _wf_existing[0].id }} ({{ workflow.name }})"
     kr_method: DELETE
@@ -72,7 +74,9 @@
     # --- 既存が無ければ新規作成する ---
     #   body は { yaml: "<workflow YAML 全体>" }
     - name: "Create workflow | {{ workflow.name }}"
-      ansible.builtin.include_tasks: request.yml
+      ansible.builtin.include_role:
+        name: kibana_common
+        tasks_from: request.yml
       vars:
         kr_name: "POST {{ kibana_workflows_item_path }} ({{ workflow.name }})"
         kr_method: POST
@@ -97,7 +101,9 @@
 
     # --- 差分あり、または force_update 指定時のみ PUT で更新 ---
     - name: "Update workflow | {{ workflow.name }}"
-      ansible.builtin.include_tasks: request.yml
+      ansible.builtin.include_role:
+        name: kibana_common
+        tasks_from: request.yml
       vars:
         kr_name: "PUT {{ kibana_workflows_item_path }}/{{ _wf_existing[0].id }} ({{ workflow.name }})"
         kr_method: PUT

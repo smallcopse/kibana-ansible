@@ -1,0 +1,10 @@
+---
+# kibana_common は部品ロール。単体では何もしない（このファイルはタスクなし）。
+#
+# 依存ロール（kibana_connectors / kibana_rules / kibana_workflows）が meta の
+# dependencies でこのロールを読み込むと、defaults の接続変数がスコープに入る。
+# 実処理は各ロールが tasks_from で明示的に呼び出す:
+#   - ansible.builtin.include_role: { name: kibana_common, tasks_from: connect.yml }
+#       接続チェック + _kibana_api_base / _kibana_headers の生成
+#   - ansible.builtin.include_role: { name: kibana_common, tasks_from: request.yml }
+#       Kibana API 呼び出しの共通ラッパ（結果は kibana_request に register）
